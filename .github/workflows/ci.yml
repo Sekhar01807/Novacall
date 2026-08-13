@@ -8,27 +8,29 @@ on:
 
 jobs:
   backend-verification:
-    name: Backend Lint & Verification
+    name: Backend Lint, Tests & Verification
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 18
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          node-version: 22
 
       - name: Install Backend Dependencies
         working-directory: ./backend
-        run: npm ci
+        run: npm install
 
       - name: Verify Backend Syntax
         working-directory: ./backend
         run: node -c src/app.js
+
+      - name: Run Backend Automated Tests
+        working-directory: ./backend
+        run: npm test
 
   frontend-verification:
     name: Frontend Build Verification
@@ -38,17 +40,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 18
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          node-version: 22
 
       - name: Install Frontend Dependencies
         working-directory: ./frontend
-        run: npm ci
+        run: npm install
 
       - name: Build Frontend Application
         working-directory: ./frontend
         run: npm run build
+

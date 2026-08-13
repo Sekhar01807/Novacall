@@ -24,10 +24,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - PORT=8000
-      - ATLASDB_URL=mongodb://mongodb:27017/novacall
-      - FRONTEND_URL=http://localhost:3000
-      - JWT_SECRET=novacall_enterprise_docker_secret
+      - PORT=${PORT:-8000}
+      - ATLASDB_URL=${ATLASDB_URL:-mongodb://mongodb:27017/novacall}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - JWT_SECRET=${JWT_SECRET:-novacall_secure_jwt_secret}
     depends_on:
       mongodb:
         condition: service_healthy

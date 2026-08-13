@@ -4,25 +4,17 @@ import { verifyJWT } from "../utils/jwt.js";
 
 export const authMiddleware = async (req, res, next) => {
     try {
-        let token;
         const authHeader = req.headers.authorization;
 
-        if (authHeader && authHeader.startsWith("Bearer ")) {
-            token = authHeader.substring(7);
-        } else if (req.query && req.query.token) {
-            token = req.query.token;
-        } else if (req.body && req.body.token) {
-            token = req.body.token;
-        }
-
-        if (!token) {
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
             return res.status(httpStatus.UNAUTHORIZED).json({
                 success: false,
-                message: "Access denied. Authentication token required.",
+                message: "Access denied. Bearer authentication token required in Authorization header.",
                 code: "TOKEN_REQUIRED"
             });
         }
 
+        const token = authHeader.substring(7);
         const decoded = verifyJWT(token);
 
         if (!decoded) {
@@ -33,19 +25,12 @@ export const authMiddleware = async (req, res, next) => {
             });
         }
 
-        let user;
-        if (decoded.id) {
-            user = await User.findById(decoded.id).select("-password");
-        } else if (decoded.username) {
-            user = await User.findOne({ username: decoded.username }).select("-password");
-        } else {
-            user = await User.findOne({ token: token }).select("-password");
-        }
+        const user = await User.findById(decoded.id || decoded._id).select("-password");
 
         if (!user) {
             return res.status(httpStatus.UNAUTHORIZED).json({
                 success: false,
-                message: "User account no longer exists.",
+                message: "User account not found or has been removed.",
                 code: "USER_NOT_FOUND"
             });
         }
@@ -60,3 +45,4 @@ export const authMiddleware = async (req, res, next) => {
         });
     }
 };
+

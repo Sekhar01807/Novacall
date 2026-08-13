@@ -19,9 +19,6 @@ const userSchema = new Schema({
         type: String,
         required: true
     },
-    token: {
-        type: String,
-    },
     jobTitle: {
         type: String,
         default: ""

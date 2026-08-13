@@ -1,13 +1,13 @@
 # NovaCall
 
-A production-ready full-stack real-time video conferencing application built with **Node.js, Express, React 18, WebSockets (Socket.IO), WebRTC, MongoDB, and Vercel**.
+A production-oriented full-stack real-time video conferencing application built with **Node.js 22 LTS, Express, React 19, WebSockets (Socket.IO), WebRTC (STUN + TURN Relay), MongoDB, and Vercel**.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-007acc.svg)](LICENSE)
-[![Frontend: React 18](https://img.shields.io/badge/Frontend-React%2018-007acc.svg)](https://reactjs.org/)
-[![Backend: Node.js Express](https://img.shields.io/badge/Backend-Node.js%20Express-68a063.svg)](https://expressjs.com/)
+[![Frontend: React 19](https://img.shields.io/badge/Frontend-React%2019-007acc.svg)](https://reactjs.org/)
+[![Backend: Node.js 22](https://img.shields.io/badge/Backend-Node.js%2022%20LTS-68a063.svg)](https://nodejs.org/)
 [![Database: MongoDB Atlas](https://img.shields.io/badge/Database-MongoDB%20Atlas-47a248.svg)](https://www.mongodb.com/)
 [![Realtime: Socket.IO](https://img.shields.io/badge/Realtime-Socket.IO%20%7C%20WebRTC-f05032.svg)](https://socket.io/)
-[![Container: Docker](https://img.shields.io/badge/Docker-Ready-2496ed.svg)](docker-compose.yml)
+[![Container: Docker](https://img.shields.io/badge/Docker-Compose%20Ready-2496ed.svg)](docker-compose.yml)
 [![CI: GitHub Actions](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF.svg)](.github/workflows/ci.yml)
 [![Docs: OpenAPI 3.0](https://img.shields.io/badge/API%20Docs-Swagger-85EA2D.svg)](http://localhost:8000/api/docs)
 [![Deployment: Vercel](https://img.shields.io/badge/Deployment-Vercel-007acc.svg)](https://novacall-two.vercel.app/)
@@ -228,8 +228,8 @@ Novacall/
 
 ### Prerequisites
 Make sure you have installed:
-- **Node.js** (v16+)
-- **npm**
+- **Node.js** (v20+ / Node 22 LTS recommended)
+- **npm** (v9+)
 - **MongoDB** (Local instance or MongoDB Atlas URI)
 - **Git**
 
@@ -354,17 +354,26 @@ NovaCall implements robust engineering and security standards:
 - **WebRTC STUN + TURN Relay**: Direct peer-to-peer WebRTC connections with automatic fallback to TURN relay servers for restrictive corporate firewalls and symmetric NATs.
 - **Graceful Process Termination**: Catches `SIGTERM` and `SIGINT` to safely drain HTTP requests, disconnect Socket.IO peers, and close database connections cleanly.
 - **Automated CI/CD Pipeline**: GitHub Actions workflow (`.github/workflows/ci.yml`) validates backend syntax and builds the frontend on every push.
-Meetings
- ├── Create meeting
- ├── Join meeting
- ├── Leave meeting
- └── Meeting history
-Authorization
- ├── Host permissions
- └── Resource ownership
-Realtime Communication
- └── Socket.IO room communication
+
+---
+
+## 🧪 Automated Testing Suite
+
+Run the backend automated unit and security test suite:
+
+```bash
+cd backend
+npm test
 ```
+
+Test coverage includes:
+- ✅ JWT access token signing & signature verification
+- ✅ Tampered token detection & rejection
+- ✅ Expired token invalidation
+- ✅ Password complexity and email format validation
+- ✅ In-meeting chat XSS HTML sanitization
+- ✅ OpenAPI 3.0 specification integrity
+- ✅ Logger credential masking and redaction
 
 ---
 

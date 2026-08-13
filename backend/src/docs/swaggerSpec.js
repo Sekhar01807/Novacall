@@ -3,7 +3,7 @@ export const openapiSpecification = {
     info: {
         title: "NovaCall REST API",
         version: "1.0.0",
-        description: "Official REST API documentation for NovaCall real-time video conferencing platform.",
+        description: "Official OpenAPI 3.0 specification for NovaCall real-time video conferencing platform.",
         contact: {
             name: "NovaCall Engineering Team",
             email: "support@novacall.io"
@@ -12,7 +12,7 @@ export const openapiSpecification = {
     servers: [
         {
             url: "/api/v1/users",
-            description: "Production & Local API Base"
+            description: "User & Conference API Endpoint Base"
         }
     ],
     components: {
@@ -20,7 +20,8 @@ export const openapiSpecification = {
             bearerAuth: {
                 type: "http",
                 scheme: "bearer",
-                bearerFormat: "JWT"
+                bearerFormat: "JWT",
+                description: "Enter your signed JWT access token in the format: Bearer <token>"
             }
         }
     },
@@ -78,6 +79,56 @@ export const openapiSpecification = {
                 }
             }
         },
+        "/forgot_password": {
+            post: {
+                summary: "Initiate password reset flow and receive verification code",
+                tags: ["Authentication"],
+                requestBody: {
+                    required: true,
+                    content: {
+                        "application/json": {
+                            schema: {
+                                type: "object",
+                                required: ["email"],
+                                properties: {
+                                    email: { type: "string", example: "jane@example.com" }
+                                }
+                            }
+                        }
+                    }
+                },
+                responses: {
+                    200: { description: "Reset code generated" },
+                    404: { description: "Account not found" }
+                }
+            }
+        },
+        "/reset_password": {
+            post: {
+                summary: "Reset account password with verification code",
+                tags: ["Authentication"],
+                requestBody: {
+                    required: true,
+                    content: {
+                        "application/json": {
+                            schema: {
+                                type: "object",
+                                required: ["email", "resetCode", "newPassword"],
+                                properties: {
+                                    email: { type: "string", example: "jane@example.com" },
+                                    resetCode: { type: "string", example: "123456" },
+                                    newPassword: { type: "string", example: "NewSecurePass123" }
+                                }
+                            }
+                        }
+                    }
+                },
+                responses: {
+                    200: { description: "Password reset successful" },
+                    400: { description: "Invalid or expired code" }
+                }
+            }
+        },
         "/get_profile": {
             get: {
                 summary: "Get user account profile details",
@@ -85,6 +136,83 @@ export const openapiSpecification = {
                 security: [{ bearerAuth: [] }],
                 responses: {
                     200: { description: "User profile data returned" },
+                    401: { description: "Unauthorized - Invalid or missing token" }
+                }
+            }
+        },
+        "/update_profile": {
+            post: {
+                summary: "Update user profile information and conferencing preferences",
+                tags: ["User Profile"],
+                security: [{ bearerAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        "application/json": {
+                            schema: {
+                                type: "object",
+                                properties: {
+                                    name: { type: "string" },
+                                    jobTitle: { type: "string" },
+                                    company: { type: "string" },
+                                    phone: { type: "string" },
+                                    country: { type: "string" },
+                                    timeZone: { type: "string" },
+                                    statusMsg: { type: "string" }
+                                }
+                            }
+                        }
+                    }
+                },
+                responses: {
+                    200: { description: "Profile updated successfully" },
+                    401: { description: "Unauthorized" }
+                }
+            }
+        },
+        "/change_password": {
+            post: {
+                summary: "Change user account password",
+                tags: ["User Profile"],
+                security: [{ bearerAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        "application/json": {
+                            schema: {
+                                type: "object",
+                                required: ["currentPassword", "newPassword"],
+                                properties: {
+                                    currentPassword: { type: "string" },
+                                    newPassword: { type: "string" }
+                                }
+                            }
+                        }
+                    }
+                },
+                responses: {
+                    200: { description: "Password updated successfully" },
+                    401: { description: "Incorrect current password or unauthorized" }
+                }
+            }
+        },
+        "/signout_all": {
+            post: {
+                summary: "Sign out of all sessions",
+                tags: ["User Profile"],
+                security: [{ bearerAuth: [] }],
+                responses: {
+                    200: { description: "Signed out of all devices" }
+                }
+            }
+        },
+        "/delete_account": {
+            post: {
+                summary: "Permanently delete user account and associated meeting history",
+                tags: ["User Profile"],
+                security: [{ bearerAuth: [] }],
+                responses: {
+                    200: { description: "Account and data deleted" },
                     401: { description: "Unauthorized" }
                 }
             }
@@ -96,6 +224,31 @@ export const openapiSpecification = {
                 security: [{ bearerAuth: [] }],
                 responses: {
                     200: { description: "Meeting history list returned" },
+                    401: { description: "Unauthorized" }
+                }
+            }
+        },
+        "/add_to_activity": {
+            post: {
+                summary: "Log a completed meeting conference code to user history",
+                tags: ["Meeting History"],
+                security: [{ bearerAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        "application/json": {
+                            schema: {
+                                type: "object",
+                                required: ["meeting_code"],
+                                properties: {
+                                    meeting_code: { type: "string", example: "demo-room" }
+                                }
+                            }
+                        }
+                    }
+                },
+                responses: {
+                    201: { description: "Added to activity history" },
                     401: { description: "Unauthorized" }
                 }
             }
@@ -123,8 +276,40 @@ export const openapiSpecification = {
                     }
                 },
                 responses: {
-                    201: { description: "Meeting scheduled" },
+                    201: { description: "Meeting scheduled successfully" },
                     401: { description: "Unauthorized" }
+                }
+            }
+        },
+        "/get_upcoming_meetings": {
+            get: {
+                summary: "Retrieve list of all upcoming scheduled meetings for authenticated user",
+                tags: ["Scheduled Meetings"],
+                security: [{ bearerAuth: [] }],
+                responses: {
+                    200: { description: "Scheduled meetings list returned" },
+                    401: { description: "Unauthorized" }
+                }
+            }
+        },
+        "/delete_scheduled_meeting/{id}": {
+            delete: {
+                summary: "Cancel/delete a scheduled meeting (owner only)",
+                tags: ["Scheduled Meetings"],
+                security: [{ bearerAuth: [] }],
+                parameters: [
+                    {
+                        name: "id",
+                        in: "path",
+                        required: true,
+                        schema: { type: "string" },
+                        description: "MongoDB ObjectID of the scheduled meeting"
+                    }
+                ],
+                responses: {
+                    200: { description: "Scheduled meeting deleted" },
+                    403: { description: "Forbidden - You do not own this meeting" },
+                    404: { description: "Meeting not found" }
                 }
             }
         }
@@ -136,12 +321,13 @@ export const renderSwaggerHTML = (spec) => `
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>NovaCall API Documentation</title>
+  <title>NovaCall API Documentation (OpenAPI 3.0)</title>
   <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css">
   <style>
-    body { margin: 0; background: #0F172A; font-family: sans-serif; }
+    body { margin: 0; background: #0F172A; font-family: 'Inter', sans-serif; }
     .swagger-ui .topbar { display: none; }
     .swagger-ui { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .swagger-ui .info .title { color: #38BDF8 !important; }
   </style>
 </head>
 <body>
