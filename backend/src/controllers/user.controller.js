@@ -47,8 +47,12 @@ const verifyJWT = (token, secret) => {
 const login = async (req, res) => {
     const { username, password } = req.body;
 
-    if (!username || !password) {
-        return res.status(400).json({ message: "Please provide both username and password" });
+    // Item 7: Login input validation
+    if (!username || !username.trim()) {
+        return res.status(400).json({ message: "Email or username is required" });
+    }
+    if (!password || !password.trim()) {
+        return res.status(400).json({ message: "Password is required" });
     }
 
     try {
@@ -86,10 +90,35 @@ const login = async (req, res) => {
 const register = async (req, res) => {
     const { name, email, username, password } = req.body;
 
+    // Item 7: Server-side input validation
+    if (!name || !name.trim()) {
+        return res.status(400).json({ message: "Full name is required" });
+    }
+    if (!email || !email.trim()) {
+        return res.status(400).json({ message: "Email is required" });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: "Please enter a valid email address" });
+    }
+    if (!username || !username.trim()) {
+        return res.status(400).json({ message: "Username is required" });
+    }
+    if (!password || password.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters long" });
+    }
+    if (!/[A-Z]/.test(password)) {
+        return res.status(400).json({ message: "Password must contain at least one uppercase letter" });
+    }
+    if (!/[0-9]/.test(password)) {
+        return res.status(400).json({ message: "Password must contain at least one number" });
+    }
+
     try {
         const existingUser = await User.findOne({ $or: [{ username }, { email }] });
         if (existingUser) {
-            return res.status(httpStatus.FOUND).json({ message: "User already exists" });
+            // Item 8: Use 409 Conflict instead of 302 Found
+            return res.status(409).json({ message: "User already exists" });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);

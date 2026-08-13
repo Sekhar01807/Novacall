@@ -25,6 +25,7 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import SecurityIcon from '@mui/icons-material/Security';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import InsertEmoticonIcon from '@mui/icons-material/InsertEmoticon';
+import EmojiEmotionsIcon from '@mui/icons-material/EmojiEmotions';
 import Popover from '@mui/material/Popover';
 import { useContext } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
@@ -95,17 +96,20 @@ export default function VideoMeetComponent() {
     let [meetingNotes, setMeetingNotes] = useState("");
     let [networkStatus, setNetworkStatus] = useState(navigator.onLine ? "Connected" : "Offline");
     let [errorMessage, setErrorMessage] = useState("");
-    let [isHost, setIsHost] = useState(true);
+    let [isHost, setIsHost] = useState(false);
     let [joinToast, setJoinToast] = useState("");
     let [allowChat, setAllowChat] = useState(true);
     let [emojiAnchor, setEmojiAnchor] = useState(null);
+    let [reactionAnchor, setReactionAnchor] = useState(null);
 
     const quickEmojis = ['😄', '😂', '😍', '👍', '🎉', '❤️', '🚀', '👋', '💡', '🔥', '👏', '🙏'];
 
     const renderFormattedText = (text) => {
         if (!text) return null;
+        // Item 5: XSS-safe text rendering
+        const sanitized = sanitizeChatText(text);
         const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
-        const parts = text.split(urlRegex);
+        const parts = sanitized.split(urlRegex);
 
         return parts.map((part, i) => {
             if (part.match(urlRegex)) {
@@ -124,6 +128,17 @@ export default function VideoMeetComponent() {
             }
             return part;
         });
+    };
+
+    // Item 5: Client-side chat XSS sanitization
+    const sanitizeChatText = (str) => {
+        if (typeof str !== 'string') return '';
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#x27;');
     };
     let mediaRecorderRef = useRef(null);
     let recordedChunksRef = useRef([]);
@@ -238,14 +253,30 @@ export default function VideoMeetComponent() {
         try {
             const videoPermission = await navigator.mediaDevices.getUserMedia({ video: true });
             setVideoAvailable(!!videoPermission);
+            videoPermission.getTracks().forEach(t => t.stop());
+        } catch (videoErr) {
+            // Item 4: Show camera permission error to user
+            setVideoAvailable(false);
+            setErrorMessage("Camera access denied. Please check your browser permissions to enable video.");
+        }
+
+        try {
             const audioPermission = await navigator.mediaDevices.getUserMedia({ audio: true });
             setAudioAvailable(!!audioPermission);
+            audioPermission.getTracks().forEach(t => t.stop());
+        } catch (audioErr) {
+            // Item 4: Show microphone permission error to user
+            setAudioAvailable(false);
+            setErrorMessage("Microphone access denied. Please check your browser permissions to enable audio.");
+        }
 
-            if (navigator.mediaDevices.getDisplayMedia) {
-                setScreenAvailable(true);
-            }
+        if (navigator.mediaDevices.getDisplayMedia) {
+            setScreenAvailable(true);
+        }
 
-            if (videoPermission || audioPermission) {
+        try {
+            const constraints = { video: videoAvailable, audio: audioAvailable };
+            if (constraints.video || constraints.audio) {
                 const userMediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 if (userMediaStream) {
                     window.localStream = userMediaStream;
@@ -254,8 +285,8 @@ export default function VideoMeetComponent() {
                     }
                 }
             }
-        } catch (error) {
-            console.log(error);
+        } catch (streamErr) {
+            console.log("Could not get user media:", streamErr);
         }
     };
 
@@ -289,9 +320,19 @@ export default function VideoMeetComponent() {
             localVideoref.current.srcObject = stream;
         }
 
+        // Item 6: Replace deprecated addStream with addTrack
         for (let id in connections) {
             if (id === socketIdRef.current) continue;
-            connections[id].addStream(window.localStream);
+            try {
+                // Remove old senders before adding new tracks
+                const senders = connections[id].getSenders();
+                senders.forEach(sender => {
+                    try { connections[id].removeTrack(sender); } catch (e) { }
+                });
+            } catch (e) { }
+            window.localStream.getTracks().forEach(track => {
+                connections[id].addTrack(track, window.localStream);
+            });
             connections[id].createOffer().then((description) => {
                 connections[id].setLocalDescription(description)
                     .then(() => {
@@ -319,7 +360,15 @@ export default function VideoMeetComponent() {
             }
 
             for (let id in connections) {
-                connections[id].addStream(window.localStream)
+                try {
+                    const senders = connections[id].getSenders();
+                    senders.forEach(sender => {
+                        try { connections[id].removeTrack(sender); } catch (e) { }
+                    });
+                } catch (e) { }
+                window.localStream.getTracks().forEach(track => {
+                    connections[id].addTrack(track, window.localStream);
+                });
                 connections[id].createOffer().then((description) => {
                     connections[id].setLocalDescription(description)
                         .then(() => {
@@ -359,9 +408,18 @@ export default function VideoMeetComponent() {
             localVideoref.current.srcObject = stream;
         }
 
+        // Item 6: Replace deprecated addStream with addTrack
         for (let id in connections) {
             if (id === socketIdRef.current) continue
-            connections[id].addStream(window.localStream)
+            try {
+                const senders = connections[id].getSenders();
+                senders.forEach(sender => {
+                    try { connections[id].removeTrack(sender); } catch (e) { }
+                });
+            } catch (e) { }
+            window.localStream.getTracks().forEach(track => {
+                connections[id].addTrack(track, window.localStream);
+            });
             connections[id].createOffer().then((description) => {
                 connections[id].setLocalDescription(description)
                     .then(() => {
@@ -441,6 +499,11 @@ export default function VideoMeetComponent() {
                 setVideos((videos) => videos.filter((video) => video.socketId !== id))
             });
 
+            // Item 1: Listen for host status from server
+            socketRef.current.on('host-status', (data) => {
+                setIsHost(data.isHost);
+            });
+
             // Enterprise Socket Listeners
             socketRef.current.on('receive-notes', (incomingNotes) => {
                 setMeetingNotes(incomingNotes);
@@ -502,12 +565,15 @@ export default function VideoMeetComponent() {
                         }
                     }
 
-                    connections[socketListId].onaddstream = (event) => {
+                    // Item 6: Replace deprecated onaddstream with ontrack
+                    connections[socketListId].ontrack = (event) => {
+                        const remoteStream = event.streams[0];
+                        if (!remoteStream) return;
                         let videoExists = videoRef.current.find(video => video.socketId === socketListId);
                         if (videoExists) {
                             setVideos(videos => {
                                 const updatedVideos = videos.map(video =>
-                                    video.socketId === socketListId ? { ...video, stream: event.stream } : video
+                                    video.socketId === socketListId ? { ...video, stream: remoteStream } : video
                                 );
                                 videoRef.current = updatedVideos;
                                 return updatedVideos;
@@ -515,7 +581,7 @@ export default function VideoMeetComponent() {
                         } else {
                             let newVideo = {
                                 socketId: socketListId,
-                                stream: event.stream,
+                                stream: remoteStream,
                                 autoplay: true,
                                 playsinline: true
                             };
@@ -527,19 +593,28 @@ export default function VideoMeetComponent() {
                         }
                     };
 
+                    // Item 6: Replace deprecated addStream with addTrack
                     if (window.localStream !== undefined && window.localStream !== null) {
-                        connections[socketListId].addStream(window.localStream)
+                        window.localStream.getTracks().forEach(track => {
+                            connections[socketListId].addTrack(track, window.localStream);
+                        });
                     } else {
                         let blackSilence = (...args) => new MediaStream([black(...args), silence()])
                         window.localStream = blackSilence()
-                        connections[socketListId].addStream(window.localStream)
+                        window.localStream.getTracks().forEach(track => {
+                            connections[socketListId].addTrack(track, window.localStream);
+                        });
                     }
                 })
 
                 if (id === socketIdRef.current) {
                     for (let id2 in connections) {
                         if (id2 === socketIdRef.current) continue
-                        try { connections[id2].addStream(window.localStream) } catch (e) { }
+                        try {
+                            window.localStream.getTracks().forEach(track => {
+                                connections[id2].addTrack(track, window.localStream);
+                            });
+                        } catch (e) { }
                         connections[id2].createOffer().then((description) => {
                             connections[id2].setLocalDescription(description)
                                 .then(() => {
@@ -585,7 +660,8 @@ export default function VideoMeetComponent() {
                         getDislayMediaSuccess(stream);
                     })
                     .catch((e) => {
-                        console.log("Screen share canceled or denied:", e);
+                        // Item 4: Show screen share error to user
+                        setErrorMessage("Screen sharing was cancelled or denied.");
                         setScreen(false);
                     });
             }
@@ -1536,6 +1612,39 @@ export default function VideoMeetComponent() {
                             <FiberManualRecordIcon sx={{ color: isRecording ? '#F43F5E' : '#F8FAFC' }} />
                             <span style={{ color: isRecording ? '#F43F5E' : '#F8FAFC' }}>{isRecording ? 'Recording...' : 'Record'}</span>
                         </button>
+                        {/* Item 2: Raise Hand Button */}
+                        <button className={styles.controlBtn} onClick={handleRaiseHand} style={{ position: 'relative' }}>
+                            <BackHandIcon sx={{ color: raisedHand ? '#F59E0B' : '#F8FAFC' }} />
+                            <span style={{ color: raisedHand ? '#F59E0B' : '#F8FAFC' }}>{raisedHand ? 'Lower' : 'Raise'}</span>
+                        </button>
+                        {/* Item 2: Reaction Button */}
+                        <button className={styles.controlBtn} onClick={(e) => setReactionAnchor(e.currentTarget)}>
+                            <EmojiEmotionsIcon sx={{ color: reactionAnchor ? '#3B82F6' : '#F8FAFC' }} />
+                            <span style={{ color: reactionAnchor ? '#3B82F6' : '#F8FAFC' }}>React</span>
+                        </button>
+                        <Popover
+                            open={Boolean(reactionAnchor)}
+                            anchorEl={reactionAnchor}
+                            onClose={() => setReactionAnchor(null)}
+                            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+                            transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+                        >
+                            <Box sx={{ p: 1.5, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 0.8, bgcolor: '#1E293B', borderRadius: 2, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                {quickEmojis.map((emoji, idx) => (
+                                    <Button
+                                        key={idx}
+                                        size="small"
+                                        onClick={() => {
+                                            triggerEmoji(emoji);
+                                            setReactionAnchor(null);
+                                        }}
+                                        sx={{ minWidth: 36, fontSize: '1.3rem', p: 0.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
+                                    >
+                                        {emoji}
+                                    </Button>
+                                ))}
+                            </Box>
+                        </Popover>
                         <button className={styles.controlBtn} onClick={() => { setModal(!showModal); setDrawerTab(0); setNewMessages(0); }}>
                             <Badge badgeContent={newMessages} color="primary" overlap="circular">
                                 <ChatIcon sx={{ color: (showModal && drawerTab === 0) ? '#3B82F6' : '#F8FAFC' }} />

@@ -23,7 +23,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { AuthContext } from '../contexts/AuthContext';
-import { Snackbar, Alert } from '@mui/material';
+import { Snackbar, Alert, CircularProgress } from '@mui/material';
 import { logoImg } from '../assets/images';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -62,6 +62,9 @@ export default function Authentication() {
     const [message, setMessage] = React.useState('');
     const [showPassword, setShowPassword] = React.useState(false);
     const [rememberMe, setRememberMe] = React.useState(() => localStorage.getItem('rememberMe') === 'true');
+    const [loading, setLoading] = React.useState(false);
+    const [emailError, setEmailError] = React.useState('');
+    const [passwordError, setPasswordError] = React.useState('');
 
     // Guest Join Feature States
     const [guestModalOpen, setGuestModalOpen] = React.useState(false);
@@ -96,6 +99,48 @@ export default function Authentication() {
     const { handleRegister, handleLogin } = React.useContext(AuthContext);
 
     let handleAuth = async () => {
+        // Item 7: Client-side input validation
+        setEmailError('');
+        setPasswordError('');
+        setError('');
+
+        if (!email.trim()) {
+            setEmailError('Email is required');
+            return;
+        }
+
+        if (formState === 1) {
+            // Registration validation
+            if (!name.trim()) {
+                setError('Full name is required');
+                return;
+            }
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                setEmailError('Please enter a valid email address');
+                return;
+            }
+            if (password.length < 8) {
+                setPasswordError('Password must be at least 8 characters');
+                return;
+            }
+            if (!/[A-Z]/.test(password)) {
+                setPasswordError('Password must contain at least one uppercase letter');
+                return;
+            }
+            if (!/[0-9]/.test(password)) {
+                setPasswordError('Password must contain at least one number');
+                return;
+            }
+        } else {
+            // Login validation
+            if (!password.trim()) {
+                setPasswordError('Password is required');
+                return;
+            }
+        }
+
+        setLoading(true);
         try {
             if (formState === 0) {
                 if (rememberMe) {
@@ -120,6 +165,8 @@ export default function Authentication() {
         } catch (err) {
             let msg = (err.response?.data?.message || "Invalid credentials. Please check and try again.");
             setError(msg);
+        } finally {
+            setLoading(false);
         }
     }
 
@@ -270,7 +317,9 @@ export default function Authentication() {
                             placeholder="Enter email address"
                             name="email"
                             value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            onChange={(e) => { setEmail(e.target.value); setEmailError(''); }}
+                            error={!!emailError}
+                            helperText={emailError}
                             InputProps={{
                                 startAdornment: (
                                     <InputAdornment position="start">
@@ -302,7 +351,9 @@ export default function Authentication() {
                             value={password}
                             type={showPassword ? 'text' : 'password'}
                             id="password"
-                            onChange={(e) => setPassword(e.target.value)}
+                            onChange={(e) => { setPassword(e.target.value); setPasswordError(''); }}
+                            error={!!passwordError}
+                            helperText={passwordError || (formState === 1 ? 'Min 8 chars, 1 uppercase, 1 number' : '')}
                             InputProps={{
                                 startAdornment: (
                                     <InputAdornment position="start">
@@ -363,6 +414,7 @@ export default function Authentication() {
                             fullWidth
                             variant="contained"
                             onClick={handleAuth}
+                            disabled={loading}
                             sx={{
                                 mt: 1.5,
                                 mb: 1.5,
@@ -377,10 +429,14 @@ export default function Authentication() {
                                 '&:hover': {
                                     backgroundColor: '#3B82F6',
                                     boxShadow: '0 6px 20px rgba(59, 130, 246, 0.45)',
+                                },
+                                '&.Mui-disabled': {
+                                    backgroundColor: '#93C5FD',
+                                    color: '#FFFFFF',
                                 }
                             }}
                         >
-                            {formState === 0 ? "Sign In" : "Create Account"}
+                            {loading ? <CircularProgress size={24} sx={{ color: '#FFFFFF' }} /> : (formState === 0 ? "Sign In" : "Create Account")}
                         </Button>
 
                         {/* Interactive Guest Join Action Button */}

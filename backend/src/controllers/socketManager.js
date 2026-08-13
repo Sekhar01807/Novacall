@@ -6,6 +6,28 @@ let timeOnline = {}
 let polls = {}
 let roomLocks = {}
 let qnaList = {}
+let roomHosts = {}
+
+// XSS Sanitization helper (Item 5)
+const sanitizeHTML = (str) => {
+    if (typeof str !== 'string') return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+};
+
+// Helper to find which room a socket belongs to
+const findRoomForSocket = (socketId) => {
+    for (const [roomKey, roomValue] of Object.entries(connections)) {
+        if (roomValue.includes(socketId)) {
+            return [roomKey, true];
+        }
+    }
+    return ['', false];
+};
 
 export const initializeSocketIO = (server) => {
     const io = new Server(server, {
@@ -32,6 +54,14 @@ export const initializeSocketIO = (server) => {
             connections[path].push(socket.id)
             timeOnline[socket.id] = new Date();
 
+            // Item 1: Server-side host tracking — first user in room is host
+            if (!roomHosts[path]) {
+                roomHosts[path] = socket.id;
+            }
+
+            // Emit host status to joining socket
+            io.to(socket.id).emit("host-status", { isHost: socket.id === roomHosts[path] });
+
             for (let a = 0; a < connections[path].length; a++) {
                 io.to(connections[path][a]).emit("user-joined", socket.id, connections[path])
             }
@@ -57,22 +87,20 @@ export const initializeSocketIO = (server) => {
         })
 
         socket.on("chat-message", (data, sender) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
 
             if (found === true) {
                 if (messages[matchingRoom] === undefined) {
                     messages[matchingRoom] = []
                 }
 
-                messages[matchingRoom].push({ 'sender': sender, "data": data, "socket-id-sender": socket.id })
+                // Item 5: Sanitize chat messages for XSS protection
+                const sanitizedData = sanitizeHTML(data);
+                const sanitizedSender = sanitizeHTML(sender);
+
+                messages[matchingRoom].push({ 'sender': sanitizedSender, "data": sanitizedData, "socket-id-sender": socket.id })
                 connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("chat-message", data, sender, socket.id)
+                    io.to(elem).emit("chat-message", sanitizedData, sanitizedSender, socket.id)
                 })
             }
         })
@@ -284,25 +312,24 @@ export const initializeSocketIO = (server) => {
             }
         });
 
-        // Host Controls
+        // Host Controls — Item 1: Server-side host validation
         socket.on("host-mute-user", (targetSocketId) => {
-            io.to(targetSocketId).emit("force-mute-audio");
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
+            if (found && roomHosts[matchingRoom] === socket.id) {
+                io.to(targetSocketId).emit("force-mute-audio");
+            }
         });
 
         socket.on("host-kick-user", (targetSocketId) => {
-            io.to(targetSocketId).emit("force-kicked-out");
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
+            if (found && roomHosts[matchingRoom] === socket.id) {
+                io.to(targetSocketId).emit("force-kicked-out");
+            }
         });
 
         socket.on("toggle-chat-permission", (allowChat) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found) {
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
+            if (found && roomHosts[matchingRoom] === socket.id) {
                 connections[matchingRoom].forEach((elem) => {
                     io.to(elem).emit("chat-permission-updated", allowChat);
                 });
@@ -310,15 +337,8 @@ export const initializeSocketIO = (server) => {
         });
 
         socket.on("end-meeting-all", () => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found) {
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
+            if (found && roomHosts[matchingRoom] === socket.id) {
                 connections[matchingRoom].forEach((elem) => {
                     io.to(elem).emit("meeting-ended-by-host");
                 });
@@ -326,15 +346,8 @@ export const initializeSocketIO = (server) => {
         });
 
         socket.on("toggle-room-lock", (isLocked) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found) {
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
+            if (found && roomHosts[matchingRoom] === socket.id) {
                 roomLocks[matchingRoom] = isLocked;
                 connections[matchingRoom].forEach((elem) => {
                     io.to(elem).emit("room-lock-updated", isLocked);
@@ -356,10 +369,22 @@ export const initializeSocketIO = (server) => {
                         var index = connections[key].indexOf(socket.id)
                         connections[key].splice(index, 1)
 
+                        // Item 1: Host promotion on disconnect
+                        if (roomHosts[key] === socket.id) {
+                            if (connections[key] && connections[key].length > 0) {
+                                // Promote next participant to host
+                                roomHosts[key] = connections[key][0];
+                                io.to(connections[key][0]).emit("host-status", { isHost: true });
+                            } else {
+                                delete roomHosts[key];
+                            }
+                        }
+
                         if (connections[key].length === 0) {
                             delete connections[key]
                             delete polls[key]
                             delete roomLocks[key]
+                            delete roomHosts[key]
                         }
                     }
                 }

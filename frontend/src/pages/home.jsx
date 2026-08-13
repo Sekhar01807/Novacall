@@ -2,7 +2,7 @@ import React, { useContext, useState } from 'react'
 import withAuth from '../utils/withAuth'
 import { useNavigate } from 'react-router-dom'
 import "../App.css";
-import { Button, IconButton, TextField, Box, Typography, InputAdornment, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Avatar, Divider, Collapse, List, ListItem, ListItemIcon, ListItemText, Skeleton } from '@mui/material';
+import { Button, IconButton, TextField, Box, Typography, InputAdornment, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Avatar, Divider, Collapse, List, ListItem, ListItemIcon, ListItemText, Skeleton, CircularProgress } from '@mui/material';
 import RestoreIcon from '@mui/icons-material/Restore';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
@@ -47,16 +47,36 @@ function HomeComponent() {
         setProfileOpen(!profileOpen);
     };
 
+    const [joinLoading, setJoinLoading] = useState(false);
+
     let handleJoinVideoCall = async () => {
         if (!meetingCode.trim()) return;
-        await addToUserHistory(meetingCode);
-        navigate(`/${meetingCode}`);
+        setJoinLoading(true);
+        try {
+            await addToUserHistory(meetingCode);
+            navigate(`/${meetingCode}`);
+        } catch (e) {
+            setToastMessage("Failed to join meeting. Please try again.");
+            setToastOpen(true);
+        } finally {
+            setJoinLoading(false);
+        }
     }
 
+    const [newMeetingLoading, setNewMeetingLoading] = useState(false);
+
     const handleNewMeeting = async () => {
-        const code = Math.random().toString(36).substring(2, 8);
-        await addToUserHistory(code);
-        navigate(`/${code}`);
+        setNewMeetingLoading(true);
+        try {
+            const code = Math.random().toString(36).substring(2, 8);
+            await addToUserHistory(code);
+            navigate(`/${code}`);
+        } catch (e) {
+            setToastMessage("Failed to create meeting. Please try again.");
+            setToastOpen(true);
+        } finally {
+            setNewMeetingLoading(false);
+        }
     };
 
     const generateRandomCode = () => {
@@ -209,12 +229,13 @@ function HomeComponent() {
                                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                                     <Button
                                         variant="contained"
-                                        startIcon={<VideoCallIcon />}
+                                        startIcon={newMeetingLoading ? <CircularProgress size={20} sx={{ color: '#FFF' }} /> : <VideoCallIcon />}
                                         onClick={handleNewMeeting}
+                                        disabled={newMeetingLoading}
                                         className="glow-btn"
                                         sx={{ py: 1.7, px: 3, borderRadius: '12px', fontWeight: 700, flex: { xs: '1 1 100%', sm: 1 }, textTransform: 'none', fontSize: '1.05rem' }}
                                     >
-                                        New Meeting
+                                        {newMeetingLoading ? "Creating..." : "New Meeting"}
                                     </Button>
 
                                     <Box sx={{ flex: { xs: '1 1 100%', sm: 1.5 }, display: 'flex', gap: 1 }}>
@@ -244,11 +265,11 @@ function HomeComponent() {
                                         />
                                         <Button
                                             onClick={handleJoinVideoCall}
-                                            disabled={!meetingCode}
+                                            disabled={!meetingCode || joinLoading}
                                             variant={meetingCode ? 'contained' : 'text'}
                                             sx={{ py: 1.5, px: 3, borderRadius: '12px', fontWeight: 700, textTransform: 'none', color: meetingCode ? '#FFF' : '#94A3B8' }}
                                         >
-                                            Join
+                                            {joinLoading ? <CircularProgress size={20} sx={{ color: '#FFF' }} /> : "Join"}
                                         </Button>
                                     </Box>
                                 </Box>
