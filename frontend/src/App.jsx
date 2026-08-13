@@ -7,6 +7,7 @@ import VideoMeetComponent from './pages/videoMeet/VideoMeet';
 import HomeComponent from './pages/home';
 import History from './pages/history';
 import ProfileComponent from './pages/profile';
+import NotFound from './pages/notFound';
 
 function App() {
   return (
@@ -26,7 +27,9 @@ function App() {
             <Route path='/home' element={<HomeComponent />} />
             <Route path='/profile' element={<ProfileComponent />} />
             <Route path='/history' element={<History />} />
+            <Route path='/404' element={<NotFound />} />
             <Route path='/:url' element={<VideoMeetComponent />} />
+            <Route path='*' element={<NotFound />} />
           </Routes>
         </AuthProvider>
 
