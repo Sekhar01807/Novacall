@@ -191,8 +191,8 @@ sequenceDiagram
 ### Protocols & Mechanisms Involved:
 - `RTCPeerConnection` for direct media streaming
 - `MediaStream` (`getUserMedia` & `getDisplayMedia`)
-- **STUN Discovery** (`stun.l.google.com:19302`): Resolves public IP/port bindings for direct peer-to-peer connections
-- **TURN Relay Fallback** (`openrelay.metered.ca` / custom TURN): Automatically relays media streams when strict firewalls or symmetric NATs block direct P2P connections
+- **STUN for NAT Discovery** (`stun.l.google.com:19302`): Resolves public IP/port candidates for direct peer-to-peer connectivity
+- **TURN as Relay Fallback** (`openrelay.metered.ca` / custom TURN): Relays media streams when direct peer-to-peer connectivity fails due to restrictive firewalls or symmetric NATs
 - **Socket.IO Signaling**: Exchanges session descriptions (SDP offers/answers) and candidate descriptors
 
 ---
@@ -380,7 +380,7 @@ NovaCall implements robust engineering and security standards:
 - **Strict CORS Origin Filtering**: Dynamic allowed origin configuration across both REST API endpoints and Socket.IO handshakes.
 - **WebRTC STUN + TURN Relay**: Direct peer-to-peer WebRTC connections with automatic fallback to TURN relay servers for restrictive corporate firewalls and symmetric NATs.
 - **Graceful Process Termination**: Catches `SIGTERM` and `SIGINT` to safely drain HTTP requests, disconnect Socket.IO peers, and close database connections cleanly.
-- **Automated CI/CD Pipeline**: GitHub Actions workflow (`.github/workflows/ci.yml`) validates backend syntax and builds the frontend on every push.
+- **Automated CI Pipeline**: GitHub Actions workflow (`.github/workflows/ci.yml`) validates backend syntax, runs automated unit & security tests, and verifies frontend builds on every push.
 
 ---
 
