@@ -30,3 +30,9 @@ yarn-error.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Planning & Scratch Notes
+implementation_plan.md
+using.java
+walkthrough.md
+task.md
