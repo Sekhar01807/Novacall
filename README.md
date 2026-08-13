@@ -77,26 +77,28 @@ The project was built to explore real-time communication, WebRTC-based media str
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **React** (v18)
+- **React 19**
 - **Vite**
 - **JavaScript (ES6+)**
-- **Material UI (MUI)**
+- **Material UI (MUI v7)**
 - **Axios**
 - **WebRTC API**
 - **Socket.IO Client**
 
 ### Backend
-- **Node.js**
+- **Node.js 22 LTS**
 - **Express.js**
 - **Socket.IO**
-- **MongoDB** & **Mongoose**
-- **JSON Web Tokens (JWT)**
+- **MongoDB** & **Mongoose 9**
+- **jsonwebtoken (Standard JWT)**
 - **bcrypt**
 
-### Deployment
-- **Vercel** — Frontend Client
-- **Render / Node.js** — Backend Server
-- **MongoDB Atlas** — Cloud Database
+### Deployment & Infrastructure
+- **Vercel** — Production Frontend SPA Hosting
+- **Node.js Container Runtime / Render** — Production Backend API & WebSocket Server
+- **MongoDB Atlas** — Managed Cloud Database
+- **Docker & Docker Compose** — Local & Production Containerization
+- **GitHub Actions** — Automated Continuous Integration (CI) Pipeline
 
 ---
 
@@ -105,7 +107,7 @@ The project was built to explore real-time communication, WebRTC-based media str
 ```
 ┌─────────────────────┐
 │    React Client     │
-│       (Vite)        │
+│    (Vite / React 19)│
 └──────────┬──────────┘
            │
  ┌─────────┴─────────┐
@@ -128,7 +130,12 @@ REST API         Socket.IO
                      │      WebRTC       │
                      │  Audio / Video /  │
                      │  Screen Sharing   │
-                     └───────────────────┘
+                     └─────────┬─────────┘
+                               │
+                        ┌──────┴──────┐
+                        ▼             ▼
+                      STUN          TURN
+                    (Direct P2P)  (Relay Fallback)
 ```
 
 ### Communication Flow
@@ -140,7 +147,7 @@ React Application
  │
  ├─── REST API ────────► Express ───► MongoDB
  │
- └─── Socket.IO ───────► Signaling Server ───► WebRTC ───► Meeting Participants
+ └─── Socket.IO ───────► Signaling Server ───► WebRTC (STUN/TURN) ───► Meeting Participants
 ```
 
 ---
@@ -150,7 +157,7 @@ React Application
 ### 1. User Authentication
 The user registers or logs in through the React frontend:
 ```
-React ──► POST /login ──► Express ──► MongoDB ──► JWT ──► Authenticated User
+React ──► POST /login ──► Express ──► bcrypt.compare() ──► MongoDB ──► Signed JWT Access Token ──► Authenticated User
 ```
 
 ### 2. Meeting Creation
@@ -166,13 +173,13 @@ Participant ──► React Meeting Room ──► Socket.IO Connection ──�
 ```
 
 ### 4. Real-Time Communication
-Socket.IO is used for signaling and real-time application events (participant join/leave, chat messages, host controls, media states). WebRTC handles the actual audio/video media transmission directly peer-to-peer.
+Socket.IO is used for signaling and real-time application events (participant join/leave, chat messages, host controls, media states). WebRTC handles the actual audio/video media transmission directly peer-to-peer with automatic TURN relay fallback.
 
 ---
 
-## 🌐 WebRTC Architecture
+## 🌐 WebRTC Architecture (STUN + TURN Relay)
 
-NovaCall uses WebRTC for peer-to-peer audio/video communication:
+NovaCall uses WebRTC for high-performance audio/video communication with multi-server ICE traversal:
 
 ```
 Participant A                        Signaling Server                        Participant B
@@ -183,15 +190,17 @@ Participant A                        Signaling Server                        Par
      │                                      │                                      │
      │◄────────── ICE Candidates ──────────►│◄────────── ICE Candidates ──────────►│
      │                                                                             │
-     │══════════════════ Direct WebRTC P2P Media Stream ═══════════════════════════│
+     ├────────────────── Direct WebRTC P2P (STUN Discovery) ──────────────────────┤
+     │                                     OR                                      │
+     └────────────── TURN Relay Fallback (Restrictive Symmetric NATs) ─────────────┘
 ```
 
-### Technologies Involved:
-- `RTCPeerConnection`
+### Protocols & Mechanisms Involved:
+- `RTCPeerConnection` for direct media streaming
 - `MediaStream` (`getUserMedia` & `getDisplayMedia`)
-- ICE candidates
-- STUN servers (`stun.l.google.com:19302`)
-- Socket.IO signaling
+- **STUN Discovery** (`stun.l.google.com:19302`): Resolves public IP/port bindings for direct peer-to-peer connections
+- **TURN Relay Fallback** (`openrelay.metered.ca` / custom TURN): Automatically relays media streams when strict firewalls or symmetric NATs block direct P2P connections
+- **Socket.IO Signaling**: Exchanges session descriptions (SDP offers/answers) and candidate descriptors
 
 ---
 
@@ -205,18 +214,26 @@ Novacall/
 │   │   ├── models/           # Mongoose schemas (User, Meeting, ScheduledMeeting)
 │   │   ├── routes/           # Express REST API routes
 │   │   ├── middleware/       # JWT Bearer auth middleware
-│   │   └── app.js            # Server entry point
+│   │   ├── utils/            # JWT signing, structured logger
+│   │   ├── docs/             # OpenAPI 3.0 specification & Swagger renderer
+│   │   └── app.js            # Server entry point & graceful shutdown
+│   ├── tests/                # Automated unit & integration tests
+│   ├── Dockerfile
 │   └── package.json
 │
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/            # Page components (Landing, Auth, Home, History, Profile)
+│   │   ├── pages/            # Page components (Landing, Auth, Home, History, Profile, 404)
 │   │   │   └── videoMeet/    # Modular meeting components, hooks & services
 │   │   ├── components/       # Shared UI components
 │   │   ├── contexts/         # React Context (AuthContext)
 │   │   └── App.jsx           # Main router
+│   ├── nginx.conf
+│   ├── Dockerfile
 │   └── package.json
 │
+├── .github/workflows/        # GitHub Actions CI pipeline
+├── docker-compose.yml        # Multi-container local/production orchestration
 ├── screenshots/              # Application preview screenshots
 ├── .gitignore
 └── README.md
@@ -228,7 +245,7 @@ Novacall/
 
 ### Prerequisites
 Make sure you have installed:
-- **Node.js** (v20+ / Node 22 LTS recommended)
+- **Node.js 22 LTS**
 - **npm** (v9+)
 - **MongoDB** (Local instance or MongoDB Atlas URI)
 - **Git**
