@@ -128,26 +128,34 @@ flowchart LR
 
 ## 🔄 How a Meeting Works
 
-### 1. User Authentication
-The user registers or logs in through the React frontend:
-```
-React ──► POST /login ──► Express ──► bcrypt.compare() ──► MongoDB ──► Signed JWT Access Token ──► Authenticated User
-```
-
-### 2. Meeting Creation
-A user creates a meeting and receives a unique meeting room identifier:
-```
-Create Meeting ──► Generate Room ID ──► Store Meeting Info ──► Return Meeting Details
+### 1. User Authentication Flow
+```mermaid
+flowchart LR
+    A[📱 React Client] -->|"POST /login"| B["⚙️ Express Controller"]
+    B -->|"bcrypt.compare()"| C[("🗄️ MongoDB Atlas")]
+    C -->|"User Verified"| D["🔐 Sign JWT (HMAC-SHA256)"]
+    D -->|"Bearer Token"| E["✅ Authenticated User Session"]
 ```
 
-### 3. Joining a Meeting
-When a participant joins a meeting:
+### 2. Meeting Creation Flow
+```mermaid
+flowchart LR
+    A[👤 Host User] -->|"Click Start Meeting"| B["🎲 Generate Unique Room Code"]
+    B -->|"POST /create_scheduled_meeting"| C[("🗄️ MongoDB History")]
+    C -->|"Room Initialized"| D["🚪 Open Conference Stage"]
 ```
-Participant ──► React Meeting Room ──► Socket.IO Connection ──► Join Room ──► Exchange WebRTC Signaling ──► Establish Peer Connection
+
+### 3. Joining & WebRTC Connection Flow
+```mermaid
+flowchart LR
+    A[👥 Participant] -->|"Enter Room URL"| B["📱 VideoMeet Lobby"]
+    B -->|"join-call Event"| C["⚡ Socket.IO Signaling Server"]
+    C -->|"SDP & ICE Traversal"| D["🌐 WebRTC Engine (STUN/TURN)"]
+    D -->|"Media Connected"| E["🎥 Active Video Conference"]
 ```
 
 ### 4. Real-Time Communication
-Socket.IO is used for signaling and real-time application events (participant join/leave, chat messages, host controls, media states). WebRTC handles the actual audio/video media transmission directly peer-to-peer with automatic TURN relay fallback.
+Socket.IO is used for signaling and real-time application events (participant presence, chat messages, host moderation, and media states). WebRTC handles the actual audio/video media transmission directly peer-to-peer with automatic TURN relay fallback.
 
 ---
 
@@ -193,35 +201,52 @@ sequenceDiagram
 
 ```
 Novacall/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                 # Node 22 CI pipeline (npm ci, tests, build)
 ├── backend/
 │   ├── src/
-│   │   ├── controllers/      # Route controllers (user, socket, meetings)
-│   │   ├── models/           # Mongoose schemas (User, Meeting, ScheduledMeeting)
-│   │   ├── routes/           # Express REST API routes
-│   │   ├── middleware/       # JWT Bearer auth middleware
-│   │   ├── utils/            # JWT signing, structured logger
-│   │   ├── docs/             # OpenAPI 3.0 specification & Swagger renderer
-│   │   └── app.js            # Server entry point & graceful shutdown
-│   ├── tests/                # Automated unit & integration tests
-│   ├── Dockerfile
+│   │   ├── controllers/          # user.controller.js, socketManager.js
+│   │   ├── docs/                 # OpenAPI 3.0 specification & Swagger UI
+│   │   ├── middleware/           # auth.middleware.js (Bearer token verification)
+│   │   ├── models/               # UserModel.js, meetingModel.js, scheduledMeetingModel.js
+│   │   ├── routes/               # UsersRoutes.js
+│   │   ├── utils/                # jwt.js, logger.js
+│   │   └── app.js                # Server entry point & graceful shutdown
+│   ├── tests/
+│   │   └── api.test.js           # Automated test suite (node --test)
+│   ├── .dockerignore
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── Dockerfile                # Node 22 Alpine production container
+│   ├── package-lock.json
 │   └── package.json
-│
 ├── frontend/
+│   ├── public/                   # Static assets & favicons
 │   ├── src/
-│   │   ├── pages/            # Page components (Landing, Auth, Home, History, Profile, 404)
-│   │   │   └── videoMeet/    # Modular meeting components, hooks & services
-│   │   ├── components/       # Shared UI components
-│   │   ├── contexts/         # React Context (AuthContext)
-│   │   └── App.jsx           # Main router
-│   ├── nginx.conf
-│   ├── Dockerfile
-│   └── package.json
-│
-├── .github/workflows/        # GitHub Actions CI pipeline
-├── docker-compose.yml        # Multi-container local/production orchestration
-├── screenshots/              # Application preview screenshots
-├── .gitignore
-└── README.md
+│   │   ├── assets/               # Images & icons
+│   │   ├── contexts/             # AuthContext.jsx
+│   │   ├── pages/                # Landing, Auth, Home, History, Profile, 404, VideoMeet
+│   │   │   └── videoMeet/        # Modular components, hooks, and services
+│   │   ├── styles/               # CSS modules & themes
+│   │   ├── utils/                # withAuth.jsx
+│   │   ├── App.jsx               # App routing
+│   │   ├── index.css
+│   │   └── index.jsx
+│   ├── .dockerignore
+│   ├── .gitignore
+│   ├── Dockerfile                # Multi-stage Node 22 + Nginx SPA container
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── nginx.conf                # Nginx SPA rewrite routing
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── vercel.json               # Vercel SPA routing
+│   └── vite.config.js
+├── screenshots/                  # 6 live high-res preview images
+├── .gitignore                    # Full protection for secrets, logs, and artifacts
+├── docker-compose.yml            # Multi-service stack (Frontend + Backend + MongoDB)
+└── README.md                     # Comprehensive documentation & architecture guides
 ```
 
 ---
