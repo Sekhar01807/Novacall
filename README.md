@@ -337,14 +337,20 @@ Realtime Communication
 ### 1. Landing Page
 ![Landing Page](./screenshots/landing.png)
 
-### 2. User Dashboard
+### 2. User Dashboard & Meeting Scheduler
 ![Dashboard](./screenshots/dashboard.png)
 
-### 3. Meeting Room
+### 3. Video Meeting Room
 ![Meeting Room](./screenshots/meeting_room.png)
 
-### 4. Real-Time In-Meeting Chat
-![Real-Time Chat](./screenshots/chat_panel.png)
+### 4. Real-Time In-Meeting Chat & Participant Drawer
+![Chat Panel](./screenshots/chat_panel.png)
+
+### 5. Meeting Activity History
+![Meeting History](./screenshots/history.png)
+
+### 6. User Profile & Settings
+![Profile Settings](./screenshots/profile.png)
 
 ---
 
