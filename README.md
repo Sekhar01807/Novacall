@@ -337,10 +337,13 @@ Realtime Communication
 ### 1. Landing Page
 ![Landing Page](./screenshots/landing.png)
 
-### 2. Meeting Room
+### 2. User Dashboard
+![Dashboard](./screenshots/dashboard.png)
+
+### 3. Meeting Room
 ![Meeting Room](./screenshots/meeting_room.png)
 
-### 3. Real-Time In-Meeting Chat
+### 4. Real-Time In-Meeting Chat
 ![Real-Time Chat](./screenshots/chat_panel.png)
 
 ---
