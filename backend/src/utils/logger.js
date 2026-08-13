@@ -1,14 +1,31 @@
 const formatTime = () => new Date().toISOString();
 
-const sanitize = (data) => {
-    if (!data) return data;
-    if (typeof data !== "object") return data;
+const SENSITIVE_KEYWORDS = [
+    "password",
+    "token",
+    "secret",
+    "credential",
+    "authorization",
+    "apikey",
+    "api_key",
+    "jwt",
+    "cookie",
+    "bearer"
+];
+
+export const isSensitiveKey = (key) => {
+    if (typeof key !== "string") return false;
+    const normalized = key.toLowerCase();
+    return SENSITIVE_KEYWORDS.some(sensitive => normalized.includes(sensitive));
+};
+
+export const sanitize = (data) => {
+    if (!data || typeof data !== "object") return data;
     const clean = Array.isArray(data) ? [...data] : { ...data };
-    const sensitiveKeys = ["password", "token", "newPassword", "oldPassword", "currentPassword", "secret"];
     for (const key of Object.keys(clean)) {
-        if (sensitiveKeys.includes(key.toLowerCase())) {
+        if (isSensitiveKey(key)) {
             clean[key] = "***REDACTED***";
-        } else if (typeof clean[key] === "object") {
+        } else if (typeof clean[key] === "object" && clean[key] !== null) {
             clean[key] = sanitize(clean[key]);
         }
     }
