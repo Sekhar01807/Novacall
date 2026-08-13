@@ -65,6 +65,19 @@ export default function Authentication() {
     const [loading, setLoading] = React.useState(false);
     const [emailError, setEmailError] = React.useState('');
     const [passwordError, setPasswordError] = React.useState('');
+    const [confirmPassword, setConfirmPassword] = React.useState('');
+    const [confirmPasswordError, setConfirmPasswordError] = React.useState('');
+
+    // Forgot Password Modal States
+    const [forgotModalOpen, setForgotModalOpen] = React.useState(false);
+    const [forgotEmail, setForgotEmail] = React.useState('');
+    const [forgotStep, setForgotStep] = React.useState(1); // 1: Email, 2: Code & New Password
+    const [generatedCode, setGeneratedCode] = React.useState('');
+    const [enteredCode, setEnteredCode] = React.useState('');
+    const [newPassword, setNewPassword] = React.useState('');
+    const [forgotMsg, setForgotMsg] = React.useState('');
+    const [forgotErr, setForgotErr] = React.useState('');
+    const [forgotLoading, setForgotLoading] = React.useState(false);
 
     // Guest Join Feature States
     const [guestModalOpen, setGuestModalOpen] = React.useState(false);
@@ -102,6 +115,7 @@ export default function Authentication() {
         // Item 7: Client-side input validation
         setEmailError('');
         setPasswordError('');
+        setConfirmPasswordError('');
         setError('');
 
         if (!email.trim()) {
@@ -132,6 +146,11 @@ export default function Authentication() {
                 setPasswordError('Password must contain at least one number');
                 return;
             }
+            // Item 9: Confirm password check
+            if (password !== confirmPassword) {
+                setConfirmPasswordError('Passwords do not match');
+                return;
+            }
         } else {
             // Login validation
             if (!password.trim()) {
@@ -156,6 +175,7 @@ export default function Authentication() {
                 let result = await handleRegister(name, email, email, password);
                 setName("");
                 setEmail("");
+                setConfirmPassword("");
                 setMessage(result);
                 setOpen(true);
                 setError("");
@@ -169,6 +189,67 @@ export default function Authentication() {
             setLoading(false);
         }
     }
+
+    // Item 10: Forgot Password Handlers
+    const handleSendResetCode = async () => {
+        if (!forgotEmail.trim()) {
+            setForgotErr('Please enter your email address');
+            return;
+        }
+        setForgotLoading(true);
+        setForgotErr('');
+        try {
+            const res = await fetch(`${server}/api/v1/users/forgot_password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: forgotEmail })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+
+            setGeneratedCode(data.resetCode || '123456');
+            setForgotMsg(`Verification code generated: ${data.resetCode || '123456'}`);
+            setForgotStep(2);
+        } catch (err) {
+            setForgotErr(err.message || 'Failed to send reset code');
+        } finally {
+            setForgotLoading(false);
+        }
+    };
+
+    const handleResetPasswordSubmit = async () => {
+        if (!enteredCode || !newPassword) {
+            setForgotErr('Please fill in all fields');
+            return;
+        }
+        if (newPassword.length < 8) {
+            setForgotErr('New password must be at least 8 characters long');
+            return;
+        }
+        setForgotLoading(true);
+        setForgotErr('');
+        try {
+            const res = await fetch(`${server}/api/v1/users/reset_password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: forgotEmail, resetCode: enteredCode, newPassword })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+
+            setMessage('Password reset successfully! Please sign in with your new password.');
+            setOpen(true);
+            setForgotModalOpen(false);
+            setForgotStep(1);
+            setForgotEmail('');
+            setEnteredCode('');
+            setNewPassword('');
+        } catch (err) {
+            setForgotErr(err.message || 'Reset failed');
+        } finally {
+            setForgotLoading(false);
+        }
+    };
 
     const handleGuestJoinSubmit = () => {
         if (!guestRoomCode.trim()) return;
@@ -387,6 +468,42 @@ export default function Authentication() {
                             }}
                         />
 
+                        {formState === 1 && (
+                            <TextField
+                                margin="dense"
+                                required
+                                fullWidth
+                                name="confirmPassword"
+                                label="Confirm Password"
+                                placeholder="Re-enter password"
+                                value={confirmPassword}
+                                type={showPassword ? 'text' : 'password'}
+                                id="confirmPassword"
+                                onChange={(e) => { setConfirmPassword(e.target.value); setConfirmPasswordError(''); }}
+                                error={!!confirmPasswordError}
+                                helperText={confirmPasswordError}
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <LockOutlinedIcon fontSize="small" sx={{ color: '#64748B' }} />
+                                        </InputAdornment>
+                                    ),
+                                }}
+                                sx={{
+                                    mb: 2,
+                                    '& .MuiInputLabel-root': { color: '#475569', fontWeight: 600 },
+                                    '& .MuiOutlinedInput-root': {
+                                        borderRadius: 3,
+                                        backgroundColor: '#FFFFFF',
+                                        color: '#0F172A',
+                                        '& fieldset': { borderColor: '#CBD5E1' },
+                                        '&:hover fieldset': { borderColor: '#60A5FA' },
+                                        '&.Mui-focused fieldset': { borderColor: '#3B82F6' }
+                                    }
+                                }}
+                            />
+                        )}
+
                         {formState === 0 && (
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', mt: 0.5, mb: 1 }}>
                                 <FormControlLabel
@@ -400,6 +517,14 @@ export default function Authentication() {
                                     }
                                     label={<Typography variant="body2" sx={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600 }}>Remember Me</Typography>}
                                 />
+                                {/* Item 10: Forgot Password Link */}
+                                <Typography
+                                    variant="body2"
+                                    onClick={() => { setForgotModalOpen(true); setForgotStep(1); setForgotErr(''); setForgotMsg(''); }}
+                                    sx={{ color: '#3B82F6', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                >
+                                    Forgot Password?
+                                </Typography>
                             </Box>
                         )}
 
@@ -540,6 +665,71 @@ export default function Authentication() {
                 onClose={() => setOpen(false)}
                 message={message}
             />
+            {/* Item 10: Forgot Password Modal Dialog */}
+            <Dialog open={forgotModalOpen} onClose={() => setForgotModalOpen(false)} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Reset Password
+                </DialogTitle>
+                <DialogContent dividers>
+                    {forgotErr && (
+                        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{forgotErr}</Alert>
+                    )}
+                    {forgotMsg && (
+                        <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>{forgotMsg}</Alert>
+                    )}
+
+                    {forgotStep === 1 ? (
+                        <Box>
+                            <Typography variant="body2" sx={{ color: '#475569', mb: 2 }}>
+                                Enter your registered email address below. We'll generate a verification code to reset your password.
+                            </Typography>
+                            <TextField
+                                fullWidth
+                                label="Email Address"
+                                value={forgotEmail}
+                                onChange={(e) => setForgotEmail(e.target.value)}
+                                variant="outlined"
+                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                            />
+                        </Box>
+                    ) : (
+                        <Box>
+                            <Typography variant="body2" sx={{ color: '#475569', mb: 2 }}>
+                                Enter the 6-digit code shown above and your new password.
+                            </Typography>
+                            <TextField
+                                fullWidth
+                                label="Verification Code"
+                                value={enteredCode}
+                                onChange={(e) => setEnteredCode(e.target.value)}
+                                variant="outlined"
+                                sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                            />
+                            <TextField
+                                fullWidth
+                                type="password"
+                                label="New Password (min 8 chars)"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                variant="outlined"
+                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                            />
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={() => setForgotModalOpen(false)} sx={{ fontWeight: 600, color: '#64748B' }}>Cancel</Button>
+                    {forgotStep === 1 ? (
+                        <Button variant="contained" onClick={handleSendResetCode} disabled={forgotLoading} sx={{ borderRadius: '10px', fontWeight: 700 }}>
+                            {forgotLoading ? <CircularProgress size={20} sx={{ color: '#FFF' }} /> : "Generate Code"}
+                        </Button>
+                    ) : (
+                        <Button variant="contained" onClick={handleResetPasswordSubmit} disabled={forgotLoading} sx={{ borderRadius: '10px', fontWeight: 700 }}>
+                            {forgotLoading ? <CircularProgress size={20} sx={{ color: '#FFF' }} /> : "Reset Password"}
+                        </Button>
+                    )}
+                </DialogActions>
+            </Dialog>
         </ThemeProvider>
     );
 }

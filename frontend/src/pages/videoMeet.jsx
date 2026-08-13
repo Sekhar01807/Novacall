@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import io from "socket.io-client";
-import { Badge, IconButton, TextField, Button, Box, Typography, Tabs, Tab, Avatar, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Alert, Switch, FormControlLabel } from '@mui/material';
+import { Badge, IconButton, TextField, Button, Box, Typography, Tabs, Tab, Avatar, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Alert, Switch, FormControlLabel, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import VideocamOffIcon from '@mui/icons-material/VideocamOff';
 import styles from "../styles/videoComponent.module.css";
@@ -101,6 +101,14 @@ export default function VideoMeetComponent() {
     let [allowChat, setAllowChat] = useState(true);
     let [emojiAnchor, setEmojiAnchor] = useState(null);
     let [reactionAnchor, setReactionAnchor] = useState(null);
+
+    // Items 15, 16, 18 States
+    let [peerMediaStates, setPeerMediaStates] = useState({}); // socketId -> { audioMuted, videoMuted }
+    let [peerNames, setPeerNames] = useState({}); // socketId -> name
+    let [audioDevices, setAudioDevices] = useState([]);
+    let [videoDevices, setVideoDevices] = useState([]);
+    let [selectedAudioDevice, setSelectedAudioDevice] = useState("");
+    let [selectedVideoDevice, setSelectedVideoDevice] = useState("");
 
     const quickEmojis = ['😄', '😂', '😍', '👍', '🎉', '❤️', '🚀', '👋', '💡', '🔥', '👏', '🙏'];
 
@@ -273,6 +281,13 @@ export default function VideoMeetComponent() {
         if (navigator.mediaDevices.getDisplayMedia) {
             setScreenAvailable(true);
         }
+
+        // Item 18: Enumerate devices
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            setAudioDevices(devices.filter(d => d.kind === 'audioinput'));
+            setVideoDevices(devices.filter(d => d.kind === 'videoinput'));
+        } catch (e) { console.log(e); }
 
         try {
             const constraints = { video: videoAvailable, audio: audioAvailable };
@@ -449,11 +464,19 @@ export default function VideoMeetComponent() {
     }
 
     let handleAudio = () => {
-        setAudio(prev => !prev);
+        const nextState = !audio;
+        setAudio(nextState);
+        if (socketRef.current) {
+            socketRef.current.emit("toggle-media-state", "audio", nextState);
+        }
     };
 
     let handleVideo = () => {
-        setVideo(prev => !prev);
+        const nextState = !video;
+        setVideo(nextState);
+        if (socketRef.current) {
+            socketRef.current.emit("toggle-media-state", "video", nextState);
+        }
     };
 
     let handleToggleLock = () => {
@@ -491,12 +514,30 @@ export default function VideoMeetComponent() {
         socketRef.current.on('signal', gotMessageFromServer);
 
         socketRef.current.on('connect', () => {
-            socketRef.current.emit('join-call', window.location.href);
+            socketRef.current.emit('join-call', window.location.href, username || 'Participant');
             socketIdRef.current = socketRef.current.id;
 
             socketRef.current.on('chat-message', addMessage);
             socketRef.current.on('user-left', (id) => {
-                setVideos((videos) => videos.filter((video) => video.socketId !== id))
+                setVideos((videos) => videos.filter((video) => video.socketId !== id));
+                // Item 14: Show toast notification when participant leaves
+                setPeerNames((prev) => {
+                    const leavingName = prev[id] || 'A participant';
+                    setJoinToast(`${leavingName} left the meeting`);
+                    setTimeout(() => setJoinToast(""), 3000);
+                    return prev;
+                });
+            });
+
+            // Item 15: Peer media state changed listener
+            socketRef.current.on('user-media-state-changed', (socketId, mediaType, isEnabled) => {
+                setPeerMediaStates(prev => ({
+                    ...prev,
+                    [socketId]: {
+                        ...prev[socketId],
+                        [mediaType === 'audio' ? 'audioMuted' : 'videoMuted']: !isEnabled
+                    }
+                }));
             });
 
             // Item 1: Listen for host status from server
@@ -556,7 +597,10 @@ export default function VideoMeetComponent() {
                 window.location.href = "/home";
             });
 
-            socketRef.current.on('user-joined', (id, clients) => {
+            socketRef.current.on('user-joined', (id, clients, roomNamesMap) => {
+                if (roomNamesMap) {
+                    setPeerNames(roomNamesMap);
+                }
                 clients.forEach((socketListId) => {
                     connections[socketListId] = new RTCPeerConnection(peerConfigConnections);
                     connections[socketListId].onicecandidate = function (event) {
@@ -677,10 +721,12 @@ export default function VideoMeetComponent() {
         window.location.href = "/home";
     }
 
-    const addMessage = (data, sender, socketIdSender) => {
+    // Item 13: Store message timestamp
+    const addMessage = (data, sender, socketIdSender, timestamp) => {
+        const time = timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setMessages((prevMessages) => [
             ...prevMessages,
-            { sender: sender, data: data }
+            { sender: sender, data: data, timestamp: time }
         ]);
         if (socketIdSender !== socketIdRef.current) {
             setNewMessages((prevNewMessages) => prevNewMessages + 1);
@@ -954,6 +1000,16 @@ export default function VideoMeetComponent() {
                         >
                             Join Meeting Room
                         </Button>
+
+                        {/* Item 17: Cancel / Back Button in Lobby */}
+                        <Button
+                            fullWidth
+                            variant="outlined"
+                            onClick={() => window.location.href = "/home"}
+                            sx={{ mt: 1, py: 1.2, borderRadius: '12px', fontWeight: 600, color: '#64748B', borderColor: '#CBD5E1' }}
+                        >
+                            Back to Dashboard
+                        </Button>
                     </div>
                 </div>
             ) : (
@@ -1103,24 +1159,31 @@ export default function VideoMeetComponent() {
                                 </div>
 
                                 {/* Remote Videos */}
-                                {videos.map((vid, idx) => (
-                                    <div className={`${styles.conferenceTile} ${idx === 0 ? styles.activeSpeaker : ''}`} key={vid.socketId || idx}>
-                                        <video
-                                            data-socket={vid.socketId}
-                                            ref={ref => {
-                                                if (ref && vid.stream) {
-                                                    ref.srcObject = vid.stream;
-                                                }
-                                            }}
-                                            autoPlay
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                        ></video>
-                                        <div className={styles.tileBadge}>
-                                            <span className={styles.micIcon}><MicIcon fontSize="inherit" /></span>
-                                            Participant {idx + 1} {handList && handList[vid.socketId] && "✋"}
+                                {videos.map((vid, idx) => {
+                                    const peerName = peerNames[vid.socketId] || `Participant ${idx + 1}`;
+                                    const mediaState = peerMediaStates[vid.socketId] || {};
+                                    return (
+                                        <div className={`${styles.conferenceTile} ${idx === 0 ? styles.activeSpeaker : ''}`} key={vid.socketId || idx}>
+                                            <video
+                                                data-socket={vid.socketId}
+                                                ref={ref => {
+                                                    if (ref && vid.stream) {
+                                                        ref.srcObject = vid.stream;
+                                                    }
+                                                }}
+                                                autoPlay
+                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                            ></video>
+                                            <div className={styles.tileBadge}>
+                                                <span className={`${styles.micIcon} ${mediaState.audioMuted ? styles.micMuted : ''}`}>
+                                                    {mediaState.audioMuted ? <MicOffIcon fontSize="inherit" style={{ color: '#F43F5E' }} /> : <MicIcon fontSize="inherit" />}
+                                                </span>
+                                                {/* Item 16: Display actual participant name */}
+                                                {peerName} {handList && handList[vid.socketId] && "✋"}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
 
@@ -1146,7 +1209,11 @@ export default function VideoMeetComponent() {
                                         <div className={styles.chattingDisplay}>
                                             {messages.length !== 0 ? messages.map((item, index) => (
                                                 <div className={styles.chatBubble} key={index}>
-                                                    <p className={styles.chatSender}>{item.sender || 'Participant'}</p>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.3 }}>
+                                                        <p className={styles.chatSender}>{item.sender || 'Participant'}</p>
+                                                        {/* Item 13: Render chat timestamp */}
+                                                        <Typography variant="caption" sx={{ color: '#94A3B8', fontSize: '0.65rem' }}>{item.timestamp}</Typography>
+                                                    </Box>
                                                     <p className={styles.chatText}>{renderFormattedText(item.data)}</p>
                                                 </div>
                                             )) : (
@@ -1275,14 +1342,15 @@ export default function VideoMeetComponent() {
                                         {videos && videos.map((vid, idx) => {
                                             if (!vid) return null;
                                             const sId = vid.socketId || idx;
+                                            const nameToDisplay = peerNames[vid.socketId] || `Participant ${idx + 1}`;
                                             return (
                                                 <Box key={sId} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.2, border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 2.5, mb: 0.8, '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.05)' } }}>
                                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                                         <Avatar sx={{ bgcolor: '#8B5CF6', width: 32, height: 32, fontSize: '0.8rem', fontWeight: 700 }}>
-                                                            P{idx + 1}
+                                                            {nameToDisplay.charAt(0).toUpperCase()}
                                                         </Avatar>
                                                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                            Participant {idx + 1}
+                                                            {nameToDisplay}
                                                         </Typography>
                                                     </Box>
                                                     {isHost && (
@@ -1692,7 +1760,7 @@ export default function VideoMeetComponent() {
                 </DialogActions>
             </Dialog>
 
-            {/* Device Settings Dialog Modal */}
+            {/* Device Settings Dialog Modal (Item 18) */}
             <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)} fullWidth maxWidth="xs">
                 <DialogTitle sx={{ fontWeight: 800, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Audio & Video Settings</DialogTitle>
                 <DialogContent dividers>
@@ -1707,6 +1775,38 @@ export default function VideoMeetComponent() {
                         label={<Typography variant="body2" sx={{ fontWeight: 600 }}>Turn off camera when joining</Typography>} 
                         sx={{ mb: 3, display: 'block' }} 
                     />
+
+                    {/* Item 18: Camera Device Selector */}
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Camera Device</Typography>
+                    <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                        <Select
+                            value={selectedVideoDevice}
+                            onChange={(e) => setSelectedVideoDevice(e.target.value)}
+                            displayEmpty
+                            sx={{ borderRadius: '10px' }}
+                        >
+                            <MenuItem value="">Default Camera</MenuItem>
+                            {videoDevices.map((dev, idx) => (
+                                <MenuItem key={dev.deviceId || idx} value={dev.deviceId}>{dev.label || `Camera ${idx + 1}`}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
+                    {/* Item 18: Microphone Device Selector */}
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Microphone Device</Typography>
+                    <FormControl fullWidth size="small" sx={{ mb: 3 }}>
+                        <Select
+                            value={selectedAudioDevice}
+                            onChange={(e) => setSelectedAudioDevice(e.target.value)}
+                            displayEmpty
+                            sx={{ borderRadius: '10px' }}
+                        >
+                            <MenuItem value="">Default Microphone</MenuItem>
+                            {audioDevices.map((dev, idx) => (
+                                <MenuItem key={dev.deviceId || idx} value={dev.deviceId}>{dev.label || `Microphone ${idx + 1}`}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
 
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Video Resolution Quality</Typography>
                     <Button variant="outlined" fullWidth sx={{ mb: 3, borderRadius: '10px', textTransform: 'none' }}>1080p Full HD (Default)</Button>

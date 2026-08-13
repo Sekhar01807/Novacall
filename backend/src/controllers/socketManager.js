@@ -7,6 +7,7 @@ let polls = {}
 let roomLocks = {}
 let qnaList = {}
 let roomHosts = {}
+let userNames = {} // Item 16: Map socketId -> display name
 
 // XSS Sanitization helper (Item 5)
 const sanitizeHTML = (str) => {
@@ -42,10 +43,14 @@ export const initializeSocketIO = (server) => {
     io.on("connection", (socket) => {
         console.log("CLIENT CONNECTED:", socket.id);
 
-        socket.on("join-call", (path) => {
+        socket.on("join-call", (path, username) => {
             if (roomLocks[path] === true) {
                 socket.emit("room-locked-error", "This meeting has been locked by the host.");
                 return;
+            }
+
+            if (username) {
+                userNames[socket.id] = sanitizeHTML(username);
             }
 
             if (connections[path] === undefined) {
@@ -62,14 +67,20 @@ export const initializeSocketIO = (server) => {
             // Emit host status to joining socket
             io.to(socket.id).emit("host-status", { isHost: socket.id === roomHosts[path] });
 
+            // Item 16: Broadcast full userNames map to all room members
+            const roomNamesMap = {};
+            connections[path].forEach(sId => {
+                roomNamesMap[sId] = userNames[sId] || "Participant";
+            });
+
             for (let a = 0; a < connections[path].length; a++) {
-                io.to(connections[path][a]).emit("user-joined", socket.id, connections[path])
+                io.to(connections[path][a]).emit("user-joined", socket.id, connections[path], roomNamesMap)
             }
 
             if (messages[path] !== undefined) {
                 for (let a = 0; a < messages[path].length; ++a) {
                     io.to(socket.id).emit("chat-message", messages[path][a]['data'],
-                        messages[path][a]['sender'], messages[path][a]['socket-id-sender'])
+                        messages[path][a]['sender'], messages[path][a]['socket-id-sender'], messages[path][a]['timestamp'])
                 }
             }
 
@@ -97,13 +108,27 @@ export const initializeSocketIO = (server) => {
                 // Item 5: Sanitize chat messages for XSS protection
                 const sanitizedData = sanitizeHTML(data);
                 const sanitizedSender = sanitizeHTML(sender);
+                // Item 13: Add timestamp
+                const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-                messages[matchingRoom].push({ 'sender': sanitizedSender, "data": sanitizedData, "socket-id-sender": socket.id })
+                messages[matchingRoom].push({ 'sender': sanitizedSender, "data": sanitizedData, "socket-id-sender": socket.id, "timestamp": timestamp })
                 connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("chat-message", sanitizedData, sanitizedSender, socket.id)
+                    io.to(elem).emit("chat-message", sanitizedData, sanitizedSender, socket.id, timestamp)
                 })
             }
         })
+
+        // Item 15: Sync Mute / Camera State across participants
+        socket.on("toggle-media-state", (mediaType, isEnabled) => {
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
+            if (found) {
+                connections[matchingRoom].forEach((elem) => {
+                    if (elem !== socket.id) {
+                        io.to(elem).emit("user-media-state-changed", socket.id, mediaType, isEnabled);
+                    }
+                });
+            }
+        });
 
         // Shared Meeting Notes
         socket.on("sync-notes", (notes) => {

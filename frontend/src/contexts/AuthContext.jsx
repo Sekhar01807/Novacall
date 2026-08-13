@@ -221,6 +221,36 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const createScheduledMeeting = async (meetingData) => {
+        try {
+            const token = localStorage.getItem("token");
+            const res = await client.post("/create_scheduled_meeting", { token, ...meetingData });
+            return res.data;
+        } catch (e) {
+            throw e;
+        }
+    };
+
+    const getUpcomingMeetings = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const res = await client.get("/get_upcoming_meetings", { params: { token } });
+            return res.data;
+        } catch (e) {
+            console.error("Error fetching upcoming meetings:", e);
+            return [];
+        }
+    };
+
+    const deleteScheduledMeeting = async (id) => {
+        try {
+            const res = await client.delete(`/delete_scheduled_meeting/${id}`);
+            return res.data;
+        } catch (e) {
+            throw e;
+        }
+    };
+
     const data = {
         userData,
         setUserData,
@@ -233,6 +263,9 @@ export const AuthProvider = ({ children }) => {
         deleteAccount,
         addToUserHistory,
         getHistoryOfUser,
+        createScheduledMeeting,
+        getUpcomingMeetings,
+        deleteScheduledMeeting,
         handleRegister,
         handleLogin
     };

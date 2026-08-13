@@ -3,6 +3,7 @@ import { User } from "../models/UserModel.js";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { Meeting } from "../models/meetingModel.js";
+import { ScheduledMeeting } from "../models/scheduledMeetingModel.js";
 
 const base64UrlEncode = (str) => {
     return Buffer.from(str)
@@ -435,6 +436,126 @@ const deleteAccount = async (req, res) => {
     }
 };
 
+// Item 10: Forgot Password Flow
+const resetCodes = new Map(); // In-memory reset code storage (email -> { code, expires })
+
+const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email is required" });
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(httpStatus.NOT_FOUND).json({ message: "No account found with this email address" });
+        }
+
+        // Generate a 6-digit verification code
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        resetCodes.set(email.toLowerCase(), { code, expires: Date.now() + 15 * 60 * 1000 });
+
+        res.status(httpStatus.OK).json({
+            message: "Reset code generated successfully",
+            resetCode: code // Returned for user verification
+        });
+    } catch (e) {
+        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+    }
+};
+
+const resetPasswordWithCode = async (req, res) => {
+    const { email, resetCode, newPassword } = req.body;
+    if (!email || !resetCode || !newPassword) {
+        return res.status(400).json({ message: "Please provide email, reset code, and new password" });
+    }
+
+    try {
+        const record = resetCodes.get(email.toLowerCase());
+        if (!record || record.code !== resetCode || Date.now() > record.expires) {
+            return res.status(httpStatus.BAD_REQUEST).json({ message: "Invalid or expired reset code" });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(httpStatus.NOT_FOUND).json({ message: "User not found" });
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        await user.save();
+        resetCodes.delete(email.toLowerCase());
+
+        res.status(httpStatus.OK).json({ message: "Password reset successful. You can now sign in." });
+    } catch (e) {
+        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+    }
+};
+
+// Item 11: DB-Persisted Scheduled Meetings
+const createScheduledMeeting = async (req, res) => {
+    const { token, title, meeting_code, scheduled_date, scheduled_time, duration, time_zone, description } = req.body;
+    if (!title || !meeting_code || !scheduled_date) {
+        return res.status(400).json({ message: "Title, meeting code, and date are required" });
+    }
+
+    try {
+        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
+        const decoded = verifyJWT(token, secret);
+        
+        let user;
+        if (decoded && decoded.username) {
+            user = await User.findOne({ username: decoded.username });
+        } else {
+            user = await User.findOne({ token: token });
+        }
+
+        const userId = user ? user.username : "guest";
+
+        const newSchedule = new ScheduledMeeting({
+            user_id: userId,
+            title,
+            meeting_code,
+            scheduled_date: new Date(scheduled_date),
+            scheduled_time: scheduled_time || "10:00 AM",
+            duration: duration || "30 mins",
+            time_zone: time_zone || "(GMT+05:30) India Standard Time",
+            description: description || ""
+        });
+
+        await newSchedule.save();
+        res.status(httpStatus.CREATED).json({ message: "Meeting scheduled successfully", meeting: newSchedule });
+    } catch (e) {
+        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+    }
+};
+
+const getUpcomingMeetings = async (req, res) => {
+    const { token } = req.query;
+    try {
+        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
+        const decoded = verifyJWT(token, secret);
+        
+        let user;
+        if (decoded && decoded.username) {
+            user = await User.findOne({ username: decoded.username });
+        } else {
+            user = await User.findOne({ token: token });
+        }
+
+        const userId = user ? user.username : "guest";
+        const meetings = await ScheduledMeeting.find({ user_id: userId }).sort({ scheduled_date: 1 });
+        res.json(meetings);
+    } catch (e) {
+        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+    }
+};
+
+const deleteScheduledMeeting = async (req, res) => {
+    const { id } = req.params;
+    try {
+        await ScheduledMeeting.findByIdAndDelete(id);
+        res.json({ message: "Scheduled meeting cancelled successfully" });
+    } catch (e) {
+        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+    }
+};
+
 export { 
     login as loginUser, 
     register as registerUser, 
@@ -444,5 +565,10 @@ export {
     updateUserProfile,
     changePassword,
     signOutAllDevices,
-    deleteAccount
+    deleteAccount,
+    forgotPassword,
+    resetPasswordWithCode,
+    createScheduledMeeting,
+    getUpcomingMeetings,
+    deleteScheduledMeeting
 };

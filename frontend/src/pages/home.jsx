@@ -27,7 +27,7 @@ function HomeComponent() {
         return () => clearTimeout(timer);
     }, []);
     
-    // Additional Polish States
+    // Additional Polish & Priority 2 States
     const [scheduleOpen, setScheduleOpen] = useState(false);
     const [scheduledTitle, setScheduledTitle] = useState("");
     const [scheduledDate, setScheduledDate] = useState("");
@@ -35,13 +35,33 @@ function HomeComponent() {
     const [createdScheduleLink, setCreatedScheduleLink] = useState("");
     const [toastMessage, setToastMessage] = useState("");
     const [toastOpen, setToastOpen] = useState(false);
+
+    // Items 11 & 12: Upcoming & Recent Meetings States
+    const [upcomingList, setUpcomingList] = useState([]);
+    const [recentList, setRecentList] = useState([]);
+    const [scheduleLoading, setScheduleLoading] = useState(false);
     
     // Profile State
     const [profileOpen, setProfileOpen] = useState(false);
-    const { userData, addToUserHistory } = useContext(AuthContext);
+    const { userData, addToUserHistory, createScheduledMeeting, getUpcomingMeetings, getHistoryOfUser, deleteScheduledMeeting } = useContext(AuthContext);
     const savedProfile = JSON.parse(localStorage.getItem("userProfile")) || {};
     const displayName = userData?.name || userData?.username || savedProfile.displayName || (localStorage.getItem("token") ? "User" : "Guest");
     const profilePic = userData?.profilePic || savedProfile.profilePic || "";
+
+    const loadDashboardData = async () => {
+        try {
+            const upcoming = await getUpcomingMeetings();
+            setUpcomingList(upcoming || []);
+            const history = await getHistoryOfUser();
+            setRecentList((history || []).slice(-3).reverse());
+        } catch (e) {
+            console.error("Dashboard data load error:", e);
+        }
+    };
+
+    React.useEffect(() => {
+        loadDashboardData();
+    }, []);
 
     const handleProfileClick = () => {
         setProfileOpen(!profileOpen);
@@ -86,12 +106,40 @@ function HomeComponent() {
 
     const handleCreateSchedule = async () => {
         if (!scheduledTitle.trim()) return;
-        const code = Math.random().toString(36).substring(2, 8);
-        const link = `${window.location.origin}/${code}`;
-        setCreatedScheduleLink(link);
-        await addToUserHistory(code);
-        setToastMessage(`Scheduled "${scheduledTitle}" successfully!`);
-        setToastOpen(true);
+        setScheduleLoading(true);
+        try {
+            const code = Math.random().toString(36).substring(2, 8);
+            const link = `${window.location.origin}/${code}`;
+            setCreatedScheduleLink(link);
+            
+            // Item 11: Persist scheduled meeting to database
+            await createScheduledMeeting({
+                title: scheduledTitle,
+                meeting_code: code,
+                scheduled_date: scheduledDate || new Date(),
+                scheduled_time: scheduledTime || "10:00 AM"
+            });
+
+            setToastMessage(`Scheduled "${scheduledTitle}" successfully!`);
+            setToastOpen(true);
+            loadDashboardData();
+        } catch (e) {
+            setToastMessage("Failed to schedule meeting.");
+            setToastOpen(true);
+        } finally {
+            setScheduleLoading(false);
+        }
+    };
+
+    const handleDeleteSchedule = async (id) => {
+        try {
+            await deleteScheduledMeeting(id);
+            setToastMessage("Scheduled meeting cancelled.");
+            setToastOpen(true);
+            loadDashboardData();
+        } catch (e) {
+            console.error("Delete schedule error", e);
+        }
     };
 
     const copyScheduleLink = () => {
@@ -280,6 +328,57 @@ function HomeComponent() {
                                     <EventIcon fontSize="small" sx={{ color: '#3B82F6' }} /> Need to meet later? <a href="#" onClick={(e) => { e.preventDefault(); setScheduleOpen(true); }} style={{ color: '#3B82F6', fontWeight: 700, textDecoration: 'none' }}>Schedule a meeting</a>
                                 </Typography>
                             </div>
+
+                            {/* Item 12: Upcoming & Recent Meetings Section */}
+                            <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                {upcomingList && upcomingList.length > 0 && (
+                                    <Box sx={{ p: 2.5, bgcolor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0F172A', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <EventIcon sx={{ color: '#3B82F6', fontSize: 20 }} /> Upcoming Scheduled Meetings
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                            {upcomingList.map((item) => (
+                                                <Box key={item._id} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.5, bgcolor: '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                                                    <Box>
+                                                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0F172A' }}>{item.title}</Typography>
+                                                        <Typography variant="caption" sx={{ color: '#64748B' }}>
+                                                            {new Date(item.scheduled_date).toLocaleDateString()} at {item.scheduled_time} • Code: {item.meeting_code}
+                                                        </Typography>
+                                                    </Box>
+                                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                                        <Button size="small" variant="contained" onClick={() => navigate(`/${item.meeting_code}`)} sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '8px' }}>
+                                                            Start Call
+                                                        </Button>
+                                                        <Button size="small" color="error" onClick={() => handleDeleteSchedule(item._id)} sx={{ textTransform: 'none', fontSize: '0.75rem' }}>
+                                                            Cancel
+                                                        </Button>
+                                                    </Box>
+                                                </Box>
+                                            ))}
+                                        </Box>
+                                    </Box>
+                                )}
+
+                                {recentList && recentList.length > 0 && (
+                                    <Box sx={{ p: 2.5, bgcolor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0F172A', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <RestoreIcon sx={{ color: '#8B5CF6', fontSize: 20 }} /> Recent Activity
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                            {recentList.map((rec, idx) => (
+                                                <Box key={idx} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.2, bgcolor: '#F8FAFC', borderRadius: '10px' }}>
+                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155' }}>
+                                                        Room: <strong style={{ color: '#3B82F6' }}>{rec.meeting_code || rec.meetingCode}</strong>
+                                                    </Typography>
+                                                    <Typography variant="caption" sx={{ color: '#94A3B8' }}>
+                                                        {new Date(rec.date).toLocaleDateString()}
+                                                    </Typography>
+                                                </Box>
+                                            ))}
+                                        </Box>
+                                    </Box>
+                                )}
+                            </Box>
                         </Box>
                     </div>
                     
