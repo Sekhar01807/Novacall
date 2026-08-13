@@ -104,50 +104,24 @@ The project was built to explore real-time communication, WebRTC-based media str
 
 ## 🏗️ Application Architecture
 
-```
-┌─────────────────────┐
-│    React Client     │
-│    (Vite / React 19)│
-└──────────┬──────────┘
-           │
- ┌─────────┴─────────┐
- │                   │
-REST API         Socket.IO
- │                   │
- ▼                   ▼
-┌──────────────────┐ ┌──────────────────┐
-│    Express.js    │ │ Realtime Server  │
-│     Backend      │ │   (Socket.IO)    │
-└────────┬─────────┘ └────────┬─────────┘
-         │                    │
-         ▼                    │
-┌──────────────────┐          │
-│     MongoDB      │          │
-│   + Mongoose     │          │
-└──────────────────┘          │
-                              ▼
-                     ┌───────────────────┐
-                     │      WebRTC       │
-                     │  Audio / Video /  │
-                     │  Screen Sharing   │
-                     └─────────┬─────────┘
-                               │
-                        ┌──────┴──────┐
-                        ▼             ▼
-                      STUN          TURN
-                    (Direct P2P)  (Relay Fallback)
+```mermaid
+graph TD
+    Client["📱 React 19 Client (Vite + MUI)"]
+    Client -->|"REST API (JWT Bearer)"| Express["⚙️ Express.js Backend"]
+    Client -->|"WebSocket Signaling"| Socket["⚡ Socket.IO Realtime Server"]
+    Express -->|"Mongoose Schemas"| Mongo[("🗄️ MongoDB Atlas")]
+    Socket -->|"SDP & ICE Signaling"| WebRTC["🎥 WebRTC Engine"]
+    WebRTC -->|"Direct P2P Traversal"| STUN["🌐 STUN Servers (Google)"]
+    WebRTC -.->|"Relay Fallback"| TURN["🔄 TURN Servers (OpenRelay)"]
 ```
 
 ### Communication Flow
-```
-User
- │
- ▼
-React Application
- │
- ├─── REST API ────────► Express ───► MongoDB
- │
- └─── Socket.IO ───────► Signaling Server ───► WebRTC (STUN/TURN) ───► Meeting Participants
+```mermaid
+flowchart LR
+    User([👤 User]) --> App[📱 React Frontend]
+    App -->|"HTTP / REST API"| Backend["⚙️ Express + MongoDB"]
+    App -->|"WebSocket Events"| Signaling["⚡ Socket.IO Signaling"]
+    Signaling -->|"Peer Exchange"| Peers["👥 Meeting Participants (WebRTC)"]
 ```
 
 ---
@@ -181,18 +155,29 @@ Socket.IO is used for signaling and real-time application events (participant jo
 
 NovaCall uses WebRTC for high-performance audio/video communication with multi-server ICE traversal:
 
-```
-Participant A                        Signaling Server                        Participant B
-     │                                      │                                      │
-     │─────────── SDP Offer ───────────────►│─────────── SDP Offer ───────────────►│
-     │                                      │                                      │
-     │◄────────── SDP Answer ───────────────│◄────────── SDP Answer ───────────────│
-     │                                      │                                      │
-     │◄────────── ICE Candidates ──────────►│◄────────── ICE Candidates ──────────►│
-     │                                                                             │
-     ├────────────────── Direct WebRTC P2P (STUN Discovery) ──────────────────────┤
-     │                                     OR                                      │
-     └────────────── TURN Relay Fallback (Restrictive Symmetric NATs) ─────────────┘
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Participant A
+    participant S as Socket.IO Signaling Server
+    actor B as Participant B
+
+    A->>S: join-call (Room ID, Username)
+    B->>S: join-call (Room ID, Username)
+    Note over S: Room Presence & Host Designation
+
+    A->>S: Send Signal: SDP Offer
+    S->>B: Relay SDP Offer
+    B->>S: Send Signal: SDP Answer
+    S->>A: Relay SDP Answer
+
+    A->>S: Send Signal: ICE Candidates
+    S->>B: Relay ICE Candidates
+    B->>S: Send Signal: ICE Candidates
+    S->>A: Relay ICE Candidates
+
+    Note over A,B: Peer Connection Established (STUN Direct P2P or TURN Relay)
+    A<<-->>B: Real-Time Audio / Video / Screen Share Streaming
 ```
 
 ### Protocols & Mechanisms Involved:
