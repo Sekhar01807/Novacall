@@ -42,9 +42,12 @@ describe("1. JWT Authentication & Security Tests", () => {
     });
 
     test("should reject an expired token", () => {
-        // Sign with 0 seconds expiration
-        const token = signJWT(testUser, testSecret, -1);
-        const decoded = verifyJWT(token, testSecret);
+        // Create an already-expired token (1 hour in the past)
+        const expiredToken = signJWT(
+            { ...testUser, exp: Math.floor(Date.now() / 1000) - 3600 },
+            testSecret
+        );
+        const decoded = verifyJWT(expiredToken, testSecret);
         assert.strictEqual(decoded, null, "Expired token must be rejected");
     });
 });

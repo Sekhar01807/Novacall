@@ -19,7 +19,11 @@ export const getJwtSecret = () => {
  * @returns {string} - Signed JWT token
  */
 export const signJWT = (payload, secret = getJwtSecret(), expiresIn = "7d") => {
-    return jwt.sign(payload, secret, { expiresIn });
+    const options = {};
+    if (expiresIn && !payload.exp) {
+        options.expiresIn = expiresIn;
+    }
+    return jwt.sign(payload, secret, options);
 };
 
 /**
