@@ -1,6 +1,13 @@
 # NovaCall
 
-A full-stack real-time video conferencing platform built with **React, Node.js, Express, MongoDB, Socket.IO, and WebRTC**.
+A production-ready full-stack real-time video conferencing application built with **Node.js, Express, React 18, WebSockets (Socket.IO), WebRTC, MongoDB, and Vercel**.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-007acc.svg)](LICENSE)
+[![Frontend: React 18](https://img.shields.io/badge/Frontend-React%2018-007acc.svg)](https://reactjs.org/)
+[![Backend: Node.js Express](https://img.shields.io/badge/Backend-Node.js%20Express-68a063.svg)](https://expressjs.com/)
+[![Database: MongoDB Atlas](https://img.shields.io/badge/Database-MongoDB%20Atlas-47a248.svg)](https://www.mongodb.com/)
+[![Realtime: Socket.IO](https://img.shields.io/badge/Realtime-Socket.IO%20%7C%20WebRTC-f05032.svg)](https://socket.io/)
+[![Deployment: Vercel](https://img.shields.io/badge/Deployment-Vercel-007acc.svg)](https://novacall-two.vercel.app/)
 
 NovaCall is a web-based video conferencing application that enables users to create and join meeting rooms, communicate through real-time audio/video, share their screen, exchange messages, and manage participants during a meeting.
 
