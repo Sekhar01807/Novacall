@@ -24,7 +24,8 @@ import BlockIcon from '@mui/icons-material/Block';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import SecurityIcon from '@mui/icons-material/Security';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
+import InsertEmoticonIcon from '@mui/icons-material/InsertEmoticon';
+import Popover from '@mui/material/Popover';
 import { useContext } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
 import server from '../environment';
@@ -97,6 +98,33 @@ export default function VideoMeetComponent() {
     let [isHost, setIsHost] = useState(true);
     let [joinToast, setJoinToast] = useState("");
     let [allowChat, setAllowChat] = useState(true);
+    let [emojiAnchor, setEmojiAnchor] = useState(null);
+
+    const quickEmojis = ['😄', '😂', '😍', '👍', '🎉', '❤️', '🚀', '👋', '💡', '🔥', '👏', '🙏'];
+
+    const renderFormattedText = (text) => {
+        if (!text) return null;
+        const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+        const parts = text.split(urlRegex);
+
+        return parts.map((part, i) => {
+            if (part.match(urlRegex)) {
+                const href = part.startsWith('www.') ? `https://${part}` : part;
+                return (
+                    <a
+                        key={i}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#3B82F6', textDecoration: 'underline', wordBreak: 'break-all' }}
+                    >
+                        {part}
+                    </a>
+                );
+            }
+            return part;
+        });
+    };
     let mediaRecorderRef = useRef(null);
     let recordedChunksRef = useRef([]);
 
@@ -1043,7 +1071,7 @@ export default function VideoMeetComponent() {
                                             {messages.length !== 0 ? messages.map((item, index) => (
                                                 <div className={styles.chatBubble} key={index}>
                                                     <p className={styles.chatSender}>{item.sender || 'Participant'}</p>
-                                                    <p className={styles.chatText}>{item.data}</p>
+                                                    <p className={styles.chatText}>{renderFormattedText(item.data)}</p>
                                                 </div>
                                             )) : (
                                                 <Typography variant="body2" sx={{ color: '#94A3B8', textAlign: 'center', mt: 4 }}>
@@ -1062,8 +1090,43 @@ export default function VideoMeetComponent() {
                                                 placeholder={allowChat || isHost ? "Send a message..." : "Chat is disabled by Host"}
                                                 variant="outlined"
                                                 onKeyPress={(e) => { if (e.key === 'Enter') sendMessage(); }}
+                                                InputProps={{
+                                                    endAdornment: (
+                                                        <IconButton
+                                                            size="small"
+                                                            disabled={!allowChat && !isHost}
+                                                            onClick={(e) => setEmojiAnchor(e.currentTarget)}
+                                                            sx={{ color: '#3B82F6' }}
+                                                        >
+                                                            <InsertEmoticonIcon fontSize="small" />
+                                                        </IconButton>
+                                                    )
+                                                }}
                                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
                                             />
+                                            <Popover
+                                                open={Boolean(emojiAnchor)}
+                                                anchorEl={emojiAnchor}
+                                                onClose={() => setEmojiAnchor(null)}
+                                                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+                                                transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+                                            >
+                                                <Box sx={{ p: 1.5, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, bgcolor: '#FFFFFF', borderRadius: 2 }}>
+                                                    {quickEmojis.map((e, idx) => (
+                                                        <Button
+                                                            key={idx}
+                                                            size="small"
+                                                            onClick={() => {
+                                                                setMessage((prev) => prev + e);
+                                                                setEmojiAnchor(null);
+                                                            }}
+                                                            sx={{ minWidth: 36, fontSize: '1.2rem', p: 0.5 }}
+                                                        >
+                                                            {e}
+                                                        </Button>
+                                                    ))}
+                                                </Box>
+                                            </Popover>
                                             <Button
                                                 variant='contained'
                                                 onClick={sendMessage}

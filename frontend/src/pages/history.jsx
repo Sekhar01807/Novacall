@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, Button, Typography, IconButton, Container, Box, Chip, Tabs, Tab, TextField, InputAdornment } from '@mui/material';
+import { Card, CardContent, Button, Typography, IconButton, Container, Box, Chip, Tabs, Tab, TextField, InputAdornment, Skeleton } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -20,6 +20,7 @@ export default function History() {
     const [tabIndex, setTabIndex] = useState(0);
     const [copiedIndex, setCopiedIndex] = useState(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [loading, setLoading] = useState(true);
     const routeTo = useNavigate();
 
     const displayName = userData?.name || userData?.username || "User";
@@ -34,6 +35,8 @@ export default function History() {
                 }
             } catch {
                 // Handle error
+            } finally {
+                setLoading(false);
             }
         }
 
@@ -102,7 +105,18 @@ export default function History() {
                 </div>
 
                 <Box sx={{ p: 3, maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
-                    {filteredMeetings.length !== 0 ? (
+                    {loading ? (
+                        <Box sx={{ display: 'flex', gap: 3, height: '75vh' }}>
+                            <Box sx={{ width: 340, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <Skeleton variant="rounded" width="100%" height={90} sx={{ borderRadius: 3 }} />
+                                <Skeleton variant="rounded" width="100%" height={90} sx={{ borderRadius: 3 }} />
+                                <Skeleton variant="rounded" width="100%" height={90} sx={{ borderRadius: 3 }} />
+                            </Box>
+                            <Box sx={{ flexGrow: 1 }}>
+                                <Skeleton variant="rounded" width="100%" height={400} sx={{ borderRadius: 4 }} />
+                            </Box>
+                        </Box>
+                    ) : filteredMeetings.length !== 0 ? (
                         <Box sx={{ display: 'flex', gap: 3, height: '75vh' }}>
                             {/* Left Column: Meeting List */}
                             <Box sx={{ width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 1.5, overflowY: 'auto', pr: 1 }}>

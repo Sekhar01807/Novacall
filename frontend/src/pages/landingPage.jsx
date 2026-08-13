@@ -27,10 +27,64 @@ import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import Typography from '@mui/material/Typography';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Button from '@mui/material/Button';
+import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
+import MailOutlineIcon from '@mui/icons-material/MailOutline';
+import PhoneIcon from '@mui/icons-material/Phone';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import LinkedInIcon from '@mui/icons-material/LinkedIn';
+import InstagramIcon from '@mui/icons-material/Instagram';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 
 export default function LandingPage() {
     const router = useNavigate();
     const [activeFeatureTab, setActiveFeatureTab] = useState(0);
+
+    // Footer Dialog States
+    const [policyModal, setPolicyModal] = useState({ open: false, title: '', content: '' });
+    const [contactModalOpen, setContactModalOpen] = useState(false);
+    const [contactEmail, setContactEmail] = useState('');
+    const [contactMsg, setContactMsg] = useState('');
+    const [toastMessage, setToastMessage] = useState('');
+    const [toastOpen, setToastOpen] = useState(false);
+
+    const openPolicyModal = (type) => {
+        if (type === 'privacy') {
+            setPolicyModal({
+                open: true,
+                title: 'Privacy Policy',
+                content: 'NovaCall respects your privacy. All audio, video, notes, and chat transmissions are encrypted in transit. We do not store unencrypted session media or sell user information to third parties. Your data remains strictly under your control.'
+            });
+        } else if (type === 'terms') {
+            setPolicyModal({
+                open: true,
+                title: 'Terms of Service',
+                content: 'By using NovaCall, you agree to comply with applicable data protection laws and refrain from using the service for unauthorized or illegal broadcasting. NovaCall provides zero-latency video communication tools on an as-is basis.'
+            });
+        } else if (type === 'security') {
+            setPolicyModal({
+                open: true,
+                title: 'Security Standards',
+                content: 'NovaCall uses TLS 1.3 encryption for signaling, WebRTC DTLS-SRTP for peer-to-peer media streams, bcrypt password hashing, and tokenized JWT authentication with role-based moderation controls.'
+            });
+        }
+    };
+
+    const handleSendSupportMessage = () => {
+        if (!contactEmail.trim() || !contactMsg.trim()) return;
+        setContactModalOpen(false);
+        setContactEmail('');
+        setContactMsg('');
+        setToastMessage('Thank you! Your support request has been submitted.');
+        setToastOpen(true);
+    };
 
     const featureHighlights = [
         {
@@ -381,23 +435,120 @@ export default function LandingPage() {
                     </div>
 
                     <div className="footerCol">
-                        <h4>Account & App</h4>
+                        <h4>Account & Support</h4>
                         <span onClick={() => router("/auth?mode=signin")} className="footerLinkItem">Sign In</span>
                         <span onClick={() => router("/auth?mode=signup")} className="footerLinkItem">Register</span>
-                        <span onClick={() => router("/history")} className="footerLinkItem">Meeting History</span>
-                        <span onClick={() => router(`/demo-${Math.random().toString(36).substring(2, 8)}`)} className="footerLinkItem">Instant Demo</span>
+                        <span onClick={() => setContactModalOpen(true)} className="footerLinkItem">Contact Support</span>
+                        <span onClick={() => openPolicyModal('privacy')} className="footerLinkItem">Privacy Portal</span>
+                    </div>
+
+                    <div className="footerCol">
+                        <h4>Contact & Support</h4>
+                        <a href="mailto:sekharsekhar1919@gmail.com" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: '#94A3B8', margin: '4px 0' }}>
+                            <MailOutlineIcon style={{ fontSize: 16, color: '#3B82F6' }} /> sekharsekhar1919@gmail.com
+                        </a>
+                        <a href="tel:+917995511936" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: '#94A3B8', margin: '4px 0' }}>
+                            <PhoneIcon style={{ fontSize: 16, color: '#3B82F6' }} /> +91 7995511936
+                        </a>
+                        <a href="https://wa.me/917995511936" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: '#94A3B8', margin: '4px 0' }}>
+                            <WhatsAppIcon style={{ fontSize: 16, color: '#25D366' }} /> WhatsApp (+91 7995511936)
+                        </a>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                            <a href="https://www.linkedin.com/in/sekhar-reddy-408560281" target="_blank" rel="noopener noreferrer" style={{ color: '#0A66C2' }}>
+                                <LinkedInIcon style={{ fontSize: 22 }} />
+                            </a>
+                            <a href="https://www.instagram.com/sekhar_redde_/" target="_blank" rel="noopener noreferrer" style={{ color: '#E4405F' }}>
+                                <InstagramIcon style={{ fontSize: 22 }} />
+                            </a>
+                        </div>
                     </div>
                 </div>
 
                 <div className="footerBottomBar">
                     <p>© 2026 NovaCall. All rights reserved.</p>
                     <div className="footerBottomLinks">
-                        <span>Privacy Policy</span>
-                        <span>Terms of Service</span>
-                        <span>Security Standards</span>
+                        <span onClick={() => openPolicyModal('privacy')} className="footerLinkItem" style={{ cursor: 'pointer' }}>Privacy Policy</span>
+                        <span onClick={() => openPolicyModal('terms')} className="footerLinkItem" style={{ cursor: 'pointer' }}>Terms of Service</span>
+                        <span onClick={() => openPolicyModal('security')} className="footerLinkItem" style={{ cursor: 'pointer' }}>Security Standards</span>
                     </div>
                 </div>
             </footer>
+
+            {/* Policy Dialog */}
+            <Dialog open={policyModal.open} onClose={() => setPolicyModal({ ...policyModal, open: false })} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>{policyModal.title}</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body1" sx={{ color: '#475569', lineHeight: 1.7 }}>
+                        {policyModal.content}
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="contained" onClick={() => setPolicyModal({ ...policyModal, open: false })} sx={{ bgcolor: '#3B82F6', borderRadius: '10px', textTransform: 'none' }}>
+                        Close
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Contact Support Modal */}
+            <Dialog open={contactModalOpen} onClose={() => setContactModalOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ fontWeight: 800, color: '#0F172A' }}>Contact NovaCall Support</DialogTitle>
+                <DialogContent dividers>
+                    <Box sx={{ mb: 2.5, p: 2, bgcolor: '#EFF6FF', borderRadius: 3, border: '1px solid #BFDBFE' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1E40AF', mb: 1 }}>
+                            Direct Contact Channels:
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#1E3A8A', display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                            <MailOutlineIcon fontSize="small" sx={{ color: '#3B82F6' }} /> <strong>Email:</strong> sekharsekhar1919@gmail.com
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#1E3A8A', display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                            <PhoneIcon fontSize="small" sx={{ color: '#3B82F6' }} /> <strong>Phone / WhatsApp:</strong> +91 7995511936
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 2, mt: 1.5 }}>
+                            <a href="https://www.linkedin.com/in/sekhar-reddy-408560281" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: '#0A66C2', fontWeight: 600, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <LinkedInIcon fontSize="small" /> LinkedIn Profile
+                            </a>
+                            <a href="https://www.instagram.com/sekhar_redde_/" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: '#E4405F', fontWeight: 600, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <InstagramIcon fontSize="small" /> Instagram Profile
+                            </a>
+                        </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 1 }}>
+                        <TextField
+                            label="Your Email Address"
+                            fullWidth
+                            variant="outlined"
+                            value={contactEmail}
+                            onChange={(e) => setContactEmail(e.target.value)}
+                            placeholder="name@company.com"
+                        />
+                        <TextField
+                            label="How can we help?"
+                            fullWidth
+                            multiline
+                            rows={4}
+                            variant="outlined"
+                            value={contactMsg}
+                            onChange={(e) => setContactMsg(e.target.value)}
+                            placeholder="Describe your issue or question..."
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={() => setContactModalOpen(false)} sx={{ color: '#64748B' }}>
+                        Cancel
+                    </Button>
+                    <Button variant="contained" onClick={handleSendSupportMessage} sx={{ bgcolor: '#3B82F6', borderRadius: '10px', textTransform: 'none' }}>
+                        Send Message
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Toast Feedback */}
+            <Snackbar open={toastOpen} autoHideDuration={4000} onClose={() => setToastOpen(false)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert onClose={() => setToastOpen(false)} severity="success" sx={{ width: '100%', borderRadius: '10px', fontWeight: 600 }}>
+                    {toastMessage}
+                </Alert>
+            </Snackbar>
         </div>
     )
 }

@@ -8,7 +8,20 @@ export const AuthContext = createContext({});
 
 const client = axios.create({
     baseURL: `${server}/api/v1/users`
-})
+});
+
+// Session Expiration Interceptor (Item 27)
+client.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            localStorage.removeItem("token");
+            localStorage.removeItem("userProfile");
+            window.location.href = "/auth?mode=signin&reason=expired";
+        }
+        return Promise.reject(error);
+    }
+);
 
 export const AuthProvider = ({ children }) => {
     const authContext = useContext(AuthContext);

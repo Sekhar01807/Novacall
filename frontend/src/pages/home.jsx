@@ -2,7 +2,7 @@ import React, { useContext, useState } from 'react'
 import withAuth from '../utils/withAuth'
 import { useNavigate } from 'react-router-dom'
 import "../App.css";
-import { Button, IconButton, TextField, Box, Typography, InputAdornment, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Avatar, Divider, Collapse, List, ListItem, ListItemIcon, ListItemText } from '@mui/material';
+import { Button, IconButton, TextField, Box, Typography, InputAdornment, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Avatar, Divider, Collapse, List, ListItem, ListItemIcon, ListItemText, Skeleton } from '@mui/material';
 import RestoreIcon from '@mui/icons-material/Restore';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
@@ -20,6 +20,12 @@ import { logoImg, homeHeroImg } from '../assets/images';
 function HomeComponent() {
     let navigate = useNavigate();
     const [meetingCode, setMeetingCode] = useState("");
+    const [isLoading, setIsLoading] = useState(true);
+
+    React.useEffect(() => {
+        const timer = setTimeout(() => setIsLoading(false), 500);
+        return () => clearTimeout(timer);
+    }, []);
     
     // Additional Polish States
     const [scheduleOpen, setScheduleOpen] = useState(false);

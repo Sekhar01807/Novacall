@@ -19,7 +19,8 @@ import Tooltip from '@mui/material/Tooltip';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Checkbox from '@mui/material/Checkbox';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { AuthContext } from '../contexts/AuthContext';
 import { Snackbar, Alert } from '@mui/material';
@@ -60,6 +61,7 @@ export default function Authentication() {
     const [error, setError] = React.useState('');
     const [message, setMessage] = React.useState('');
     const [showPassword, setShowPassword] = React.useState(false);
+    const [rememberMe, setRememberMe] = React.useState(() => localStorage.getItem('rememberMe') === 'true');
 
     // Guest Join Feature States
     const [guestModalOpen, setGuestModalOpen] = React.useState(false);
@@ -79,6 +81,15 @@ export default function Authentication() {
         } else if (queryParams.get('mode') === 'signin') {
             setFormState(0);
         }
+
+        if (queryParams.get('reason') === 'expired') {
+            setError('Your session has expired. Please sign in again.');
+        }
+
+        const savedEmail = localStorage.getItem('savedEmail');
+        if (savedEmail && localStorage.getItem('rememberMe') === 'true') {
+            setEmail(savedEmail);
+        }
     }, [location.search]);
 
     const [open, setOpen] = React.useState(false);
@@ -87,6 +98,13 @@ export default function Authentication() {
     let handleAuth = async () => {
         try {
             if (formState === 0) {
+                if (rememberMe) {
+                    localStorage.setItem('rememberMe', 'true');
+                    localStorage.setItem('savedEmail', email);
+                } else {
+                    localStorage.removeItem('rememberMe');
+                    localStorage.removeItem('savedEmail');
+                }
                 await handleLogin(email, password);
             }
             if (formState === 1) {
@@ -317,6 +335,22 @@ export default function Authentication() {
                                 }
                             }}
                         />
+
+                        {formState === 0 && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', mt: 0.5, mb: 1 }}>
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={rememberMe}
+                                            onChange={(e) => setRememberMe(e.target.checked)}
+                                            size="small"
+                                            sx={{ color: '#64748B', '&.Mui-checked': { color: '#3B82F6' } }}
+                                        />
+                                    }
+                                    label={<Typography variant="body2" sx={{ color: '#475569', fontSize: '0.85rem', fontWeight: 600 }}>Remember Me</Typography>}
+                                />
+                            </Box>
+                        )}
 
                         {error && (
                             <Alert severity="error" sx={{ mt: 1.5, mb: 1.5, borderRadius: 3, fontSize: '0.88rem' }}>

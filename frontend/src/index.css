@@ -57,6 +57,12 @@
   --text-muted: #94A3B8;
   --text-disabled: #64748B;
 
+  /* STANDARDIZED BORDER RADIUS & TOKENS */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
   --card-shadow: 0 4px 20px 0 rgba(148, 163, 184, 0.12);
   --elevation-high: 0 10px 30px 0 rgba(148, 163, 184, 0.2);
   --font-heading: 'Plus Jakarta Sans', 'Inter', sans-serif;
@@ -67,6 +73,10 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 html, body {

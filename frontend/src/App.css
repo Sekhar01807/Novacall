@@ -896,3 +896,45 @@
 [data-theme="dark"] .MuiFormControlLabel-label {
   color: #CBD5E1 !important;
 }
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 768px) {
+  .appShell {
+    flex-direction: column !important;
+  }
+
+  .sidebarRail {
+    width: 100% !important;
+    height: auto !important;
+    padding: 12px 16px !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+
+  .sidebarNav {
+    flex-direction: row !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+  }
+
+  .dashboardContent {
+    padding: 16px !important;
+  }
+
+  .footerContainer {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 24px !important;
+  }
+
+  .footerBottomBar {
+    flex-direction: column !important;
+    gap: 12px !important;
+    text-align: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .footerContainer {
+    grid-template-columns: 1fr !important;
+  }
+}
