@@ -1,6 +1,6 @@
 # NovaCall
 
-A production-oriented full-stack real-time video conferencing application built with **Node.js 22 LTS, Express, React 19, WebSockets (Socket.IO), WebRTC (STUN + TURN Relay), MongoDB, and Vercel**.
+A production-style full-stack real-time video conferencing application built with **Node.js 22 LTS, Express, React 19, WebSockets (Socket.IO), WebRTC (STUN + TURN Relay), MongoDB, and Vercel**.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-007acc.svg)](LICENSE)
 [![Frontend: React 19](https://img.shields.io/badge/Frontend-React%2019-007acc.svg)](https://reactjs.org/)
@@ -440,17 +440,18 @@ NovaCall was built to understand and apply several important full-stack concepts
 
 ---
 
-## 🚧 Current Limitations & Future Improvements
+## 🚧 Known Limitations & Production Roadmap
 
-### Current Limitations:
-- Peer-to-peer WebRTC mesh architecture is optimal for smaller rooms; larger rooms benefit from Selective Forwarding Units (SFU).
-- Public demo environments rely on public STUN servers.
+### Known Limitations:
+- **P2P Mesh Scalability**: Direct peer-to-peer WebRTC mesh is bandwidth-optimal for 1-on-1 and small team calls (up to 4–5 participants); enterprise conference rooms with 20+ peers require a Selective Forwarding Unit (SFU).
+- **In-Memory Signaling & Rate Limit State**: Active room socket states, host assignments, and rate limiting counters are held in-memory on the backend process. Suitable for single-instance hosting; multi-instance horizontal scaling requires a shared Redis adapter and sticky sessions.
+- **Simulated Password Reset Dispatch**: The demo password reset flow logs and simulates verification code delivery rather than binding to a live paid third-party transactional email service (e.g. SendGrid / Resend).
 
-### 🔮 Future Improvements:
-- SFU-based media server architecture (e.g. mediasoup / pion)
-- Redis adapter for horizontal Socket.IO scaling
-- Automated end-to-end test suites (Playwright / Cypress)
-- Production TURN server infrastructure
+### 🔮 Production Architecture Roadmap:
+- **SFU Media Gateway**: Transitioning to mediasoup / pion for server-side video stream routing and bandwidth optimization.
+- **Redis Multi-Node Signaling**: Implementing `@socket.io/redis-adapter` for distributed pub/sub across load-balanced backend instances.
+- **Transactional Email Service**: Integrating Resend / SendGrid with cryptographically signed time-limited password reset tokens.
+- **Automated E2E Testing**: Headless browser multi-peer video/audio integration tests using Playwright.
 
 ---
 

@@ -3,17 +3,25 @@ import { Schema, model } from "mongoose";
 const userSchema = new Schema({
     name: {
         type: String,
-        required: true
+        required: true,
+        trim: true
     },
     email: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        trim: true,
+        lowercase: true,
+        match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Please provide a valid email address"]
     },
     username: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        trim: true,
+        lowercase: true,
+        minlength: [3, "Username must be at least 3 characters"],
+        match: [/^[a-zA-Z0-9_.-]+$/, "Username can only contain alphanumeric characters, underscores, dots, and hyphens"]
     },
     password: {
         type: String,

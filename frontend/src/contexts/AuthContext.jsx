@@ -68,7 +68,7 @@ export const AuthProvider = ({ children }) => {
         const token = localStorage.getItem("token");
         if (!token) return null;
         try {
-            const res = await client.get("/get_profile", { params: { token } });
+            const res = await client.get("/get_profile");
             if (res.status === httpStatus.OK && res.data) {
                 setUserData(res.data);
                 const localProf = {
@@ -138,9 +138,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     const updateUserProfile = async (profileData) => {
-        const token = localStorage.getItem("token");
         try {
-            const res = await client.post("/update_profile", { token, ...profileData });
+            const res = await client.post("/update_profile", profileData);
             if (res.status === httpStatus.OK && res.data.profile) {
                 setUserData(res.data.profile);
                 const updated = res.data.profile;
@@ -171,9 +170,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     const changePassword = async (oldPassword, newPassword) => {
-        const token = localStorage.getItem("token");
         try {
-            const res = await client.post("/change_password", { token, oldPassword, newPassword });
+            const res = await client.post("/change_password", { currentPassword: oldPassword, newPassword });
             return res.data;
         } catch (e) {
             throw e;
@@ -181,9 +179,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     const signOutAllDevices = async () => {
-        const token = localStorage.getItem("token");
         try {
-            await client.post("/signout_all", { token });
+            await client.post("/signout_all");
         } catch (e) {
             console.error("Sign out all error", e);
         } finally {
@@ -195,9 +192,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     const deleteAccount = async () => {
-        const token = localStorage.getItem("token");
         try {
-            await client.post("/delete_account", { token });
+            await client.post("/delete_account");
         } catch (e) {
             console.error("Delete account error", e);
         } finally {
@@ -210,11 +206,7 @@ export const AuthProvider = ({ children }) => {
 
     const getHistoryOfUser = async () => {
         try {
-            let request = await client.get("/get_all_activity", {
-                params: {
-                    token: localStorage.getItem("token")
-                }
-            });
+            let request = await client.get("/get_all_activity");
             return request.data;
         } catch (err) {
             throw err;
@@ -224,7 +216,6 @@ export const AuthProvider = ({ children }) => {
     const addToUserHistory = async (meetingCode) => {
         try {
             let request = await client.post("/add_to_activity", {
-                token: localStorage.getItem("token"),
                 meeting_code: meetingCode
             });
             return request;
@@ -235,8 +226,7 @@ export const AuthProvider = ({ children }) => {
 
     const createScheduledMeeting = async (meetingData) => {
         try {
-            const token = localStorage.getItem("token");
-            const res = await client.post("/create_scheduled_meeting", { token, ...meetingData });
+            const res = await client.post("/create_scheduled_meeting", meetingData);
             return res.data;
         } catch (e) {
             throw e;
@@ -245,8 +235,7 @@ export const AuthProvider = ({ children }) => {
 
     const getUpcomingMeetings = async () => {
         try {
-            const token = localStorage.getItem("token");
-            const res = await client.get("/get_upcoming_meetings", { params: { token } });
+            const res = await client.get("/get_upcoming_meetings");
             return res.data;
         } catch (e) {
             console.error("Error fetching upcoming meetings:", e);

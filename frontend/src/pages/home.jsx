@@ -116,7 +116,9 @@ function HomeComponent() {
             await createScheduledMeeting({
                 title: scheduledTitle,
                 meeting_code: code,
-                scheduled_date: scheduledDate || new Date(),
+                date: scheduledDate || new Date().toISOString(),
+                time: scheduledTime || "10:00 AM",
+                scheduled_date: scheduledDate || new Date().toISOString(),
                 scheduled_time: scheduledTime || "10:00 AM"
             });
 

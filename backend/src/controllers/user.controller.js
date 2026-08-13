@@ -235,7 +235,9 @@ const updateUserProfile = async (req, res) => {
         });
 
         await user.save();
-        res.status(httpStatus.OK).json({ success: true, message: "Profile updated successfully" });
+        const safeUser = user.toObject();
+        delete safeUser.password;
+        res.status(httpStatus.OK).json({ success: true, message: "Profile updated successfully", profile: safeUser });
     } catch (e) {
         res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
@@ -299,12 +301,18 @@ const forgotPassword = async (req, res) => {
 
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         resetCodes.set(email.toLowerCase(), { code, expires: Date.now() + 15 * 60 * 1000 });
+        logger.info(`Password reset requested for email: ${email.toLowerCase()}`);
 
-        res.status(httpStatus.OK).json({
+        const responsePayload = {
             success: true,
-            message: "Reset code generated successfully",
-            resetCode: code
-        });
+            message: "If an account with that email exists, a password reset code has been dispatched."
+        };
+
+        if (process.env.NODE_ENV !== "production") {
+            responsePayload.resetCode = code;
+        }
+
+        res.status(httpStatus.OK).json(responsePayload);
     } catch (e) {
         res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
@@ -336,7 +344,11 @@ const resetPasswordWithCode = async (req, res) => {
 };
 
 const createScheduledMeeting = async (req, res) => {
-    const { title, date, time, meeting_code } = req.body;
+    const title = req.body.title;
+    const meeting_code = req.body.meeting_code;
+    const date = req.body.date || req.body.scheduled_date;
+    const time = req.body.time || req.body.scheduled_time;
+
     if (!title || !date || !time || !meeting_code) {
         return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Missing required fields for scheduling", code: "VALIDATION_ERROR" });
     }
