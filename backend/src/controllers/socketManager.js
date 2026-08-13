@@ -1,10 +1,11 @@
-import { Server } from "socket.io"
+import { Server } from "socket.io";
+import { logger } from "../utils/logger.js";
 
-let connections = {}
-let messages = {}
-let timeOnline = {}
-let roomHosts = {}
-let userNames = {}
+let connections = {};
+let messages = {};
+let timeOnline = {};
+let roomHosts = {};
+let userNames = {};
 
 // XSS Sanitization helper
 const sanitizeHTML = (str) => {
@@ -28,9 +29,12 @@ const findRoomForSocket = (socketId) => {
 };
 
 export const initializeSocketIO = (server) => {
+    const rawOrigins = process.env.FRONTEND_URL || "*";
+    const allowedOrigins = rawOrigins.includes(",") ? rawOrigins.split(",").map(o => o.trim()) : rawOrigins;
+
     const io = new Server(server, {
         cors: {
-            origin: "*",
+            origin: allowedOrigins,
             methods: ["GET", "POST"],
             allowedHeaders: ["*"],
             credentials: true
@@ -38,7 +42,7 @@ export const initializeSocketIO = (server) => {
     });
 
     io.on("connection", (socket) => {
-        console.log("CLIENT CONNECTED:", socket.id);
+        logger.info(`Client connected: ${socket.id}`);
 
         socket.on("join-call", (path, username) => {
             if (username) {

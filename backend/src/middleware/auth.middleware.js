@@ -1,32 +1,6 @@
 import httpStatus from "http-status";
 import { User } from "../models/UserModel.js";
-
-// Base64URL decoder helper for JWT verification
-const base64UrlDecode = (str) => {
-    let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
-    while (base64.length % 4) {
-        base64 += '=';
-    }
-    return Buffer.from(base64, 'base64').toString('utf8');
-};
-
-const verifyJWT = (token, secret) => {
-    try {
-        const parts = token.split('.');
-        if (parts.length !== 3) return null;
-
-        const payloadStr = base64UrlDecode(parts[1]);
-        const payload = JSON.parse(payloadStr);
-
-        if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
-            return null; // Expired
-        }
-
-        return payload;
-    } catch (e) {
-        return null;
-    }
-};
+import { verifyJWT } from "../utils/jwt.js";
 
 export const authMiddleware = async (req, res, next) => {
     try {
@@ -42,30 +16,47 @@ export const authMiddleware = async (req, res, next) => {
         }
 
         if (!token) {
-            return res.status(httpStatus.UNAUTHORIZED).json({ message: "Access denied. Authentication token required." });
+            return res.status(httpStatus.UNAUTHORIZED).json({
+                success: false,
+                message: "Access denied. Authentication token required.",
+                code: "TOKEN_REQUIRED"
+            });
         }
 
-        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
-        const decoded = verifyJWT(token, secret);
+        const decoded = verifyJWT(token);
 
         if (!decoded) {
-            return res.status(httpStatus.UNAUTHORIZED).json({ message: "Invalid or expired token. Please log in again." });
+            return res.status(httpStatus.UNAUTHORIZED).json({
+                success: false,
+                message: "Invalid or expired session. Please log in again.",
+                code: "TOKEN_INVALID"
+            });
         }
 
         let user;
-        if (decoded.username) {
+        if (decoded.id) {
+            user = await User.findById(decoded.id).select("-password");
+        } else if (decoded.username) {
             user = await User.findOne({ username: decoded.username }).select("-password");
         } else {
             user = await User.findOne({ token: token }).select("-password");
         }
 
         if (!user) {
-            return res.status(httpStatus.UNAUTHORIZED).json({ message: "User account not found." });
+            return res.status(httpStatus.UNAUTHORIZED).json({
+                success: false,
+                message: "User account no longer exists.",
+                code: "USER_NOT_FOUND"
+            });
         }
 
         req.user = user;
         next();
     } catch (error) {
-        return res.status(httpStatus.UNAUTHORIZED).json({ message: "Authentication failed." });
+        return res.status(httpStatus.UNAUTHORIZED).json({
+            success: false,
+            message: "Authentication verification failed.",
+            code: "AUTH_ERROR"
+        });
     }
 };

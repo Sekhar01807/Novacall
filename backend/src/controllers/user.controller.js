@@ -1,220 +1,182 @@
 import httpStatus from "http-status";
 import { User } from "../models/UserModel.js";
 import bcrypt from "bcrypt";
-import crypto from "crypto";
 import { Meeting } from "../models/meetingModel.js";
 import { ScheduledMeeting } from "../models/scheduledMeetingModel.js";
-
-const base64UrlEncode = (str) => {
-    return Buffer.from(str)
-        .toString("base64")
-        .replace(/=/g, "")
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_");
-};
-
-const generateJWT = (payload, secret) => {
-    const header = base64UrlEncode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-    const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-    const signature = crypto
-        .createHmac("sha256", secret)
-        .update(`${header}.${encodedPayload}`)
-        .digest("base64")
-        .replace(/=/g, "")
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_");
-    return `${header}.${encodedPayload}.${signature}`;
-};
-
-const verifyJWT = (token, secret) => {
-    try {
-        const [header, payload, signature] = token.split(".");
-        const expectedSig = crypto
-            .createHmac("sha256", secret)
-            .update(`${header}.${payload}`)
-            .digest("base64")
-            .replace(/=/g, "")
-            .replace(/\+/g, "-")
-            .replace(/\//g, "_");
-        if (signature !== expectedSig) return null;
-        const decodedPayload = JSON.parse(Buffer.from(payload, "base64").toString("utf-8"));
-        if (decodedPayload.exp && Date.now() / 1000 > decodedPayload.exp) return null;
-        return decodedPayload;
-    } catch {
-        return null;
-    }
-};
+import { signJWT } from "../utils/jwt.js";
 
 const login = async (req, res) => {
     const { username, password } = req.body;
 
-    // Item 7: Login input validation
     if (!username || !username.trim()) {
-        return res.status(400).json({ message: "Email or username is required" });
+        return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            message: "Email or username is required",
+            code: "VALIDATION_ERROR"
+        });
     }
     if (!password || !password.trim()) {
-        return res.status(400).json({ message: "Password is required" });
+        return res.status(httpStatus.BAD_REQUEST).json({
+            success: false,
+            message: "Password is required",
+            code: "VALIDATION_ERROR"
+        });
     }
 
     try {
-        const user = await User.findOne({ $or: [{ username: username }, { email: username }] });
+        const user = await User.findOne({
+            $or: [{ username: username.trim() }, { email: username.trim().toLowerCase() }]
+        });
+
         if (!user) {
-            return res.status(httpStatus.NOT_FOUND).json({ message: "User Not Found" });
+            return res.status(httpStatus.NOT_FOUND).json({
+                success: false,
+                message: "No account found with this username or email",
+                code: "USER_NOT_FOUND"
+            });
         }
 
-        let isPasswordCorrect = await bcrypt.compare(password, user.password);
+        const isPasswordCorrect = await bcrypt.compare(password, user.password);
 
-        if (isPasswordCorrect) {
-            const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
-            const payload = {
-                id: user._id,
-                username: user.username,
-                email: user.email,
-                iat: Math.floor(Date.now() / 1000),
-                exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) // 7 days expiration
-            };
-
-            const token = generateJWT(payload, secret);
-
-            user.token = token;
-            await user.save();
-            return res.status(httpStatus.OK).json({ token: token, email: user.email, username: user.username, name: user.name });
-        } else {
-            return res.status(httpStatus.UNAUTHORIZED).json({ message: "Invalid Username or password" });
+        if (!isPasswordCorrect) {
+            return res.status(httpStatus.UNAUTHORIZED).json({
+                success: false,
+                message: "Invalid credentials. Please check your password.",
+                code: "INVALID_CREDENTIALS"
+            });
         }
+
+        const token = signJWT({
+            id: user._id,
+            username: user.username,
+            email: user.email
+        });
+
+        return res.status(httpStatus.OK).json({
+            success: true,
+            token: token,
+            email: user.email,
+            username: user.username,
+            name: user.name
+        });
 
     } catch (e) {
-        return res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: `Login error: ${e.message}`,
+            code: "SERVER_ERROR"
+        });
     }
 };
 
 const register = async (req, res) => {
     const { name, email, username, password } = req.body;
 
-    // Item 7: Server-side input validation
     if (!name || !name.trim()) {
-        return res.status(400).json({ message: "Full name is required" });
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Full name is required", code: "VALIDATION_ERROR" });
     }
     if (!email || !email.trim()) {
-        return res.status(400).json({ message: "Email is required" });
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Email is required", code: "VALIDATION_ERROR" });
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-        return res.status(400).json({ message: "Please enter a valid email address" });
+    if (!emailRegex.test(email.trim())) {
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Please enter a valid email address", code: "VALIDATION_ERROR" });
     }
     if (!username || !username.trim()) {
-        return res.status(400).json({ message: "Username is required" });
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Username is required", code: "VALIDATION_ERROR" });
     }
     if (!password || password.length < 8) {
-        return res.status(400).json({ message: "Password must be at least 8 characters long" });
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Password must be at least 8 characters long", code: "VALIDATION_ERROR" });
     }
     if (!/[A-Z]/.test(password)) {
-        return res.status(400).json({ message: "Password must contain at least one uppercase letter" });
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Password must contain at least one uppercase letter", code: "VALIDATION_ERROR" });
     }
     if (!/[0-9]/.test(password)) {
-        return res.status(400).json({ message: "Password must contain at least one number" });
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Password must contain at least one number", code: "VALIDATION_ERROR" });
     }
 
     try {
-        const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+        const existingUser = await User.findOne({
+            $or: [{ username: username.trim() }, { email: email.trim().toLowerCase() }]
+        });
+
         if (existingUser) {
-            // Item 8: Use 409 Conflict instead of 302 Found
-            return res.status(409).json({ message: "User already exists" });
+            return res.status(httpStatus.CONFLICT).json({
+                success: false,
+                message: "An account with this email or username already exists",
+                code: "USER_EXISTS"
+            });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const newUser = new User({
-            name: name,
-            email: email,
-            username: username,
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            username: username.trim(),
             password: hashedPassword
         });
 
         await newUser.save();
 
-        res.status(httpStatus.CREATED).json({ message: "User Registered Successfully" });
+        const token = signJWT({
+            id: newUser._id,
+            username: newUser.username,
+            email: newUser.email
+        });
+
+        res.status(httpStatus.CREATED).json({
+            success: true,
+            message: "User registered successfully",
+            token: token,
+            name: newUser.name,
+            username: newUser.username,
+            email: newUser.email
+        });
 
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: `Registration failed: ${e.message}`,
+            code: "SERVER_ERROR"
+        });
     }
 };
 
 const getUserHistory = async (req, res) => {
-    const { token } = req.query;
-
     try {
-        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
-        const decoded = verifyJWT(token, secret);
-        
-        let user;
-        if (decoded && decoded.username) {
-            user = await User.findOne({ username: decoded.username });
-        } else {
-            user = await User.findOne({ token: token });
-        }
-
-        if (!user) {
-            return res.status(httpStatus.NOT_FOUND).json({ message: "User session expired or invalid" });
-        }
-
-        const meetings = await Meeting.find({ user_id: user.username });
-        res.json(meetings);
+        const user = req.user;
+        const meetings = await Meeting.find({ user_id: user.username }).sort({ date: -1 });
+        res.status(httpStatus.OK).json(meetings);
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
 };
 
 const addToHistory = async (req, res) => {
-    const { token, meeting_code } = req.body;
+    const { meeting_code } = req.body;
+    if (!meeting_code) {
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Meeting code required", code: "VALIDATION_ERROR" });
+    }
 
     try {
-        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
-        const decoded = verifyJWT(token, secret);
-        
-        let user;
-        if (decoded && decoded.username) {
-            user = await User.findOne({ username: decoded.username });
-        } else {
-            user = await User.findOne({ token: token });
-        }
-
-        if (!user) {
-            return res.status(httpStatus.NOT_FOUND).json({ message: "User session invalid" });
-        }
-
+        const user = req.user;
         const newMeeting = new Meeting({
             user_id: user.username,
             meeting_code: meeting_code
         });
 
         await newMeeting.save();
-
-        res.status(httpStatus.CREATED).json({ message: "Added code to history" });
+        res.status(httpStatus.CREATED).json({ success: true, message: "Added code to history" });
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
 };
 
 const getUserProfile = async (req, res) => {
-    const { token } = req.query;
-
     try {
-        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
-        const decoded = verifyJWT(token, secret);
-        
-        let user;
-        if (decoded && decoded.username) {
-            user = await User.findOne({ username: decoded.username });
-        } else {
-            user = await User.findOne({ token: token });
-        }
-
-        if (!user) {
-            return res.status(httpStatus.NOT_FOUND).json({ message: "User session expired or invalid" });
-        }
-
-        res.json({
+        const user = req.user;
+        res.status(httpStatus.OK).json({
             name: user.name,
             email: user.email,
             username: user.username,
@@ -249,310 +211,181 @@ const getUserProfile = async (req, res) => {
             planName: user.planName || "Professional"
         });
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
 };
 
 const updateUserProfile = async (req, res) => {
-    const { 
-        token, name, jobTitle, company, profilePic, themeMode, defaultMicOff, defaultCamOff, 
-        selectedCam, selectedMic, selectedSpeaker, phone, country, timeZone, statusMsg, 
-        statusState, pronouns, showJobTitle, showCompany, showProfilePhoto, hdVideo, mirrorVideo, 
-        notifyInvites, notifyReminders, notifyJoins, notifyLeaves, emailNotifs, productUpdates, 
-        timeFormat, accentColor, planName 
-    } = req.body;
-
     try {
-        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
-        const decoded = verifyJWT(token, secret);
-        
-        let user;
-        if (decoded && decoded.username) {
-            user = await User.findOne({ username: decoded.username });
-        } else {
-            user = await User.findOne({ token: token });
-        }
+        const user = req.user;
+        const allowedFields = [
+            "name", "jobTitle", "company", "profilePic", "themeMode",
+            "defaultMicOff", "defaultCamOff", "selectedCam", "selectedMic",
+            "selectedSpeaker", "phone", "country", "timeZone", "statusMsg",
+            "statusState", "pronouns", "showJobTitle", "showCompany",
+            "showProfilePhoto", "hdVideo", "mirrorVideo", "notifyInvites",
+            "notifyReminders", "notifyJoins", "notifyLeaves", "emailNotifs",
+            "productUpdates", "timeFormat", "accentColor"
+        ];
 
-        if (!user) {
-            return res.status(httpStatus.NOT_FOUND).json({ message: "User session invalid" });
-        }
-
-        if (name !== undefined) user.name = name;
-        if (jobTitle !== undefined) user.jobTitle = jobTitle;
-        if (company !== undefined) user.company = company;
-        if (profilePic !== undefined) user.profilePic = profilePic;
-        if (themeMode !== undefined) user.themeMode = themeMode;
-        if (defaultMicOff !== undefined) user.defaultMicOff = defaultMicOff;
-        if (defaultCamOff !== undefined) user.defaultCamOff = defaultCamOff;
-        if (selectedCam !== undefined) user.selectedCam = selectedCam;
-        if (selectedMic !== undefined) user.selectedMic = selectedMic;
-        if (selectedSpeaker !== undefined) user.selectedSpeaker = selectedSpeaker;
-        if (phone !== undefined) user.phone = phone;
-        if (country !== undefined) user.country = country;
-        if (timeZone !== undefined) user.timeZone = timeZone;
-        if (statusMsg !== undefined) user.statusMsg = statusMsg;
-        if (statusState !== undefined) user.statusState = statusState;
-        if (pronouns !== undefined) user.pronouns = pronouns;
-        if (showJobTitle !== undefined) user.showJobTitle = showJobTitle;
-        if (showCompany !== undefined) user.showCompany = showCompany;
-        if (showProfilePhoto !== undefined) user.showProfilePhoto = showProfilePhoto;
-        if (hdVideo !== undefined) user.hdVideo = hdVideo;
-        if (mirrorVideo !== undefined) user.mirrorVideo = mirrorVideo;
-        if (notifyInvites !== undefined) user.notifyInvites = notifyInvites;
-        if (notifyReminders !== undefined) user.notifyReminders = notifyReminders;
-        if (notifyJoins !== undefined) user.notifyJoins = notifyJoins;
-        if (notifyLeaves !== undefined) user.notifyLeaves = notifyLeaves;
-        if (emailNotifs !== undefined) user.emailNotifs = emailNotifs;
-        if (productUpdates !== undefined) user.productUpdates = productUpdates;
-        if (timeFormat !== undefined) user.timeFormat = timeFormat;
-        if (accentColor !== undefined) user.accentColor = accentColor;
-        if (planName !== undefined) user.planName = planName;
-
-        await user.save();
-
-        res.status(httpStatus.OK).json({ 
-            message: "Profile updated successfully",
-            profile: {
-                name: user.name,
-                email: user.email,
-                username: user.username,
-                jobTitle: user.jobTitle,
-                company: user.company,
-                profilePic: user.profilePic,
-                themeMode: user.themeMode,
-                defaultMicOff: user.defaultMicOff,
-                defaultCamOff: user.defaultCamOff,
-                selectedCam: user.selectedCam,
-                selectedMic: user.selectedMic,
-                selectedSpeaker: user.selectedSpeaker,
-                phone: user.phone,
-                country: user.country,
-                timeZone: user.timeZone,
-                statusMsg: user.statusMsg,
-                statusState: user.statusState,
-                pronouns: user.pronouns,
-                showJobTitle: user.showJobTitle,
-                showCompany: user.showCompany,
-                showProfilePhoto: user.showProfilePhoto,
-                hdVideo: user.hdVideo,
-                mirrorVideo: user.mirrorVideo,
-                notifyInvites: user.notifyInvites,
-                notifyReminders: user.notifyReminders,
-                notifyJoins: user.notifyJoins,
-                notifyLeaves: user.notifyLeaves,
-                emailNotifs: user.emailNotifs,
-                productUpdates: user.productUpdates,
-                timeFormat: user.timeFormat,
-                accentColor: user.accentColor,
-                planName: user.planName
+        allowedFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                user[field] = req.body[field];
             }
         });
+
+        await user.save();
+        res.status(httpStatus.OK).json({ success: true, message: "Profile updated successfully" });
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
 };
 
 const changePassword = async (req, res) => {
-    const { token, oldPassword, newPassword } = req.body;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Please provide current and new password", code: "VALIDATION_ERROR" });
+    }
+
+    if (newPassword.length < 8) {
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "New password must be at least 8 characters long", code: "VALIDATION_ERROR" });
+    }
 
     try {
-        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
-        const decoded = verifyJWT(token, secret);
-
-        let user;
-        if (decoded && decoded.username) {
-            user = await User.findOne({ username: decoded.username });
-        } else {
-            user = await User.findOne({ token: token });
-        }
-
-        if (!user) {
-            return res.status(httpStatus.NOT_FOUND).json({ message: "User session invalid" });
-        }
-
-        if (oldPassword) {
-            const isMatch = await bcrypt.compare(oldPassword, user.password);
-            if (!isMatch) {
-                return res.status(httpStatus.UNAUTHORIZED).json({ message: "Incorrect old password" });
-            }
+        const user = await User.findById(req.user._id);
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return res.status(httpStatus.UNAUTHORIZED).json({ success: false, message: "Current password is incorrect", code: "INVALID_CREDENTIALS" });
         }
 
         user.password = await bcrypt.hash(newPassword, 10);
         await user.save();
 
-        res.status(httpStatus.OK).json({ message: "Password updated successfully" });
+        res.status(httpStatus.OK).json({ success: true, message: "Password updated successfully" });
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
 };
 
 const signOutAllDevices = async (req, res) => {
-    const { token } = req.body;
-
-    try {
-        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
-        const decoded = verifyJWT(token, secret);
-
-        let user;
-        if (decoded && decoded.username) {
-            user = await User.findOne({ username: decoded.username });
-        } else {
-            user = await User.findOne({ token: token });
-        }
-
-        if (user) {
-            user.token = "";
-            await user.save();
-        }
-
-        res.status(httpStatus.OK).json({ message: "Signed out of all devices" });
-    } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
-    }
+    res.status(httpStatus.OK).json({ success: true, message: "Signed out of all devices" });
 };
 
 const deleteAccount = async (req, res) => {
-    const { token } = req.body;
-
     try {
-        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
-        const decoded = verifyJWT(token, secret);
+        const user = req.user;
+        await User.deleteOne({ _id: user._id });
+        await Meeting.deleteMany({ user_id: user.username });
+        await ScheduledMeeting.deleteMany({ user_id: user.username });
 
-        let user;
-        if (decoded && decoded.username) {
-            user = await User.findOne({ username: decoded.username });
-        } else {
-            user = await User.findOne({ token: token });
-        }
-
-        if (user) {
-            await User.deleteOne({ _id: user._id });
-            await Meeting.deleteMany({ user_id: user.username });
-        }
-
-        res.status(httpStatus.OK).json({ message: "Account deleted successfully" });
+        res.status(httpStatus.OK).json({ success: true, message: "Account deleted successfully" });
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
 };
 
-// Item 10: Forgot Password Flow
-const resetCodes = new Map(); // In-memory reset code storage (email -> { code, expires })
+const resetCodes = new Map();
 
 const forgotPassword = async (req, res) => {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ message: "Email is required" });
+    if (!email) return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Email is required", code: "VALIDATION_ERROR" });
 
     try {
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
-            return res.status(httpStatus.NOT_FOUND).json({ message: "No account found with this email address" });
+            return res.status(httpStatus.NOT_FOUND).json({ success: false, message: "No account found with this email address", code: "USER_NOT_FOUND" });
         }
 
-        // Generate a 6-digit verification code
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         resetCodes.set(email.toLowerCase(), { code, expires: Date.now() + 15 * 60 * 1000 });
 
         res.status(httpStatus.OK).json({
+            success: true,
             message: "Reset code generated successfully",
-            resetCode: code // Returned for user verification
+            resetCode: code
         });
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
 };
 
 const resetPasswordWithCode = async (req, res) => {
     const { email, resetCode, newPassword } = req.body;
     if (!email || !resetCode || !newPassword) {
-        return res.status(400).json({ message: "Please provide email, reset code, and new password" });
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Please provide email, reset code, and new password", code: "VALIDATION_ERROR" });
     }
 
     try {
         const record = resetCodes.get(email.toLowerCase());
         if (!record || record.code !== resetCode || Date.now() > record.expires) {
-            return res.status(httpStatus.BAD_REQUEST).json({ message: "Invalid or expired reset code" });
+            return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Invalid or expired reset code", code: "INVALID_CODE" });
         }
 
-        const user = await User.findOne({ email });
-        if (!user) return res.status(httpStatus.NOT_FOUND).json({ message: "User not found" });
+        const user = await User.findOne({ email: email.toLowerCase() });
+        if (!user) return res.status(httpStatus.NOT_FOUND).json({ success: false, message: "User not found", code: "USER_NOT_FOUND" });
 
         user.password = await bcrypt.hash(newPassword, 10);
         await user.save();
         resetCodes.delete(email.toLowerCase());
 
-        res.status(httpStatus.OK).json({ message: "Password reset successful. You can now sign in." });
+        res.status(httpStatus.OK).json({ success: true, message: "Password reset successful. You can now log in." });
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
 };
 
-// Item 11: DB-Persisted Scheduled Meetings
 const createScheduledMeeting = async (req, res) => {
-    const { token, title, meeting_code, scheduled_date, scheduled_time, duration, time_zone, description } = req.body;
-    if (!title || !meeting_code || !scheduled_date) {
-        return res.status(400).json({ message: "Title, meeting code, and date are required" });
+    const { title, date, time, meeting_code } = req.body;
+    if (!title || !date || !time || !meeting_code) {
+        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Missing required fields for scheduling", code: "VALIDATION_ERROR" });
     }
 
     try {
-        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
-        const decoded = verifyJWT(token, secret);
-        
-        let user;
-        if (decoded && decoded.username) {
-            user = await User.findOne({ username: decoded.username });
-        } else {
-            user = await User.findOne({ token: token });
-        }
-
-        const userId = user ? user.username : "guest";
-
-        const newSchedule = new ScheduledMeeting({
-            user_id: userId,
-            title,
-            meeting_code,
-            scheduled_date: new Date(scheduled_date),
-            scheduled_time: scheduled_time || "10:00 AM",
-            duration: duration || "30 mins",
-            time_zone: time_zone || "(GMT+05:30) India Standard Time",
-            description: description || ""
+        const user = req.user;
+        const newMeeting = new ScheduledMeeting({
+            user_id: user.username,
+            title: title.trim(),
+            date: date,
+            time: time,
+            meeting_code: meeting_code.trim()
         });
 
-        await newSchedule.save();
-        res.status(httpStatus.CREATED).json({ message: "Meeting scheduled successfully", meeting: newSchedule });
+        await newMeeting.save();
+        res.status(httpStatus.CREATED).json({ success: true, message: "Meeting scheduled successfully", meeting: newMeeting });
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
 };
 
 const getUpcomingMeetings = async (req, res) => {
-    const { token } = req.query;
     try {
-        const secret = process.env.JWT_SECRET || "novacall_enterprise_jwt_secret";
-        const decoded = verifyJWT(token, secret);
-        
-        let user;
-        if (decoded && decoded.username) {
-            user = await User.findOne({ username: decoded.username });
-        } else {
-            user = await User.findOne({ token: token });
-        }
-
-        const userId = user ? user.username : "guest";
-        const meetings = await ScheduledMeeting.find({ user_id: userId }).sort({ scheduled_date: 1 });
-        res.json(meetings);
+        const user = req.user;
+        const meetings = await ScheduledMeeting.find({ user_id: user.username }).sort({ date: 1, time: 1 });
+        res.status(httpStatus.OK).json(meetings);
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
 };
 
 const deleteScheduledMeeting = async (req, res) => {
     const { id } = req.params;
     try {
+        const user = req.user;
+        const meeting = await ScheduledMeeting.findById(id);
+
+        if (!meeting) {
+            return res.status(httpStatus.NOT_FOUND).json({ success: false, message: "Scheduled meeting not found", code: "NOT_FOUND" });
+        }
+
+        if (meeting.user_id !== user.username) {
+            return res.status(httpStatus.FORBIDDEN).json({ success: false, message: "You are not authorized to delete this meeting", code: "FORBIDDEN" });
+        }
+
         await ScheduledMeeting.findByIdAndDelete(id);
-        res.json({ message: "Scheduled meeting cancelled successfully" });
+        res.status(httpStatus.OK).json({ success: true, message: "Scheduled meeting cancelled successfully" });
     } catch (e) {
-        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
     }
 };
 

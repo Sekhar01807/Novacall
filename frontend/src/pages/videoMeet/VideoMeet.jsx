@@ -14,10 +14,29 @@ import { logoImg } from "../../assets/images";
 
 const peerConfigConnections = {
     iceServers: [
+        // Standard Google STUN Servers (Direct P2P NAT Traversal)
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" }
-    ]
+        { urls: "stun:stun2.l.google.com:19302" },
+        // Fallback TURN Relay Servers (for restrictive firewalls & symmetric NATs)
+        ...(import.meta.env.VITE_TURN_URL ? [{
+            urls: import.meta.env.VITE_TURN_URL,
+            username: import.meta.env.VITE_TURN_USERNAME || "novacall",
+            credential: import.meta.env.VITE_TURN_CREDENTIAL || "novacall_secret"
+        }] : [
+            {
+                urls: "turn:openrelay.metered.ca:80",
+                username: "openrelay",
+                credential: "openrelay"
+            },
+            {
+                urls: "turn:openrelay.metered.ca:443",
+                username: "openrelay",
+                credential: "openrelay"
+            }
+        ])
+    ],
+    iceCandidatePoolSize: 10
 };
 
 var connections = {};

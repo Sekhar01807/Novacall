@@ -237,13 +237,28 @@ npm --version
 git --version
 ```
 
-### 📥 Clone the Repository
+### 🐳 Option 1: Run with Docker Compose (Recommended)
+You can spin up the entire stack (Frontend, Backend, and MongoDB) with a single command:
+
+```bash
+docker compose up --build
+```
+- **Frontend App**: `http://localhost:3000`
+- **Backend API**: `http://localhost:8000`
+- **Interactive Swagger Docs**: `http://localhost:8000/api/docs`
+- **Health Check Endpoint**: `http://localhost:8000/health`
+
+---
+
+### 💻 Option 2: Local Manual Setup
+
+#### 1. Clone the Repository
 ```bash
 git clone https://github.com/Sekhar01807/Novacall.git
 cd Novacall
 ```
 
-### 🔧 Backend Setup
+#### 2. Backend Setup
 ```bash
 cd backend
 npm install
@@ -251,9 +266,10 @@ npm install
 
 Create a `.env` file in `backend/`:
 ```env
-PORT=5000
-MONGO_URI=your_mongodb_connection_string
+PORT=8000
+ATLASDB_URL=your_mongodb_connection_string
 JWT_SECRET=your_secure_jwt_secret
+FRONTEND_URL=http://localhost:5173
 ```
 
 Start the backend:
@@ -261,7 +277,7 @@ Start the backend:
 npm run dev
 ```
 
-### 💻 Frontend Setup
+#### 3. Frontend Setup
 Open another terminal:
 ```bash
 cd frontend
@@ -270,7 +286,7 @@ npm install
 
 Create a `.env` file in `frontend/`:
 ```env
-VITE_API_URL=http://localhost:5000
+VITE_API_URL=http://localhost:8000
 ```
 
 Start the frontend:
@@ -278,7 +294,32 @@ Start the frontend:
 npm run dev
 ```
 
-Open the local development URL shown by Vite (e.g. `http://localhost:5173`) in your browser.
+Open `http://localhost:5173` in your browser.
+
+---
+
+## 📚 API Documentation (OpenAPI / Swagger)
+
+NovaCall includes interactive Swagger UI documentation directly on the backend server:
+
+- **Interactive API Explorer**: [`http://localhost:8000/api/docs`](http://localhost:8000/api/docs)
+- **Raw OpenAPI 3.0 JSON**: [`http://localhost:8000/api/openapi.json`](http://localhost:8000/api/openapi.json)
+
+---
+
+## 🩺 Monitoring & Health Check
+
+The backend exposes a health endpoint for automated container orchestration, load balancers, and uptime monitors:
+
+**`GET /health`**
+```json
+{
+  "status": "ok",
+  "uptime": 342,
+  "database": "connected",
+  "timestamp": "2026-08-14T01:40:00.000Z"
+}
+```
 
 ---
 
@@ -287,37 +328,29 @@ Open the local development URL shown by Vite (e.g. `http://localhost:5173`) in y
 ### Backend
 | Variable | Description |
 | :--- | :--- |
-| `PORT` | Backend server port (e.g. `5000` or `8000`) |
-| `MONGO_URI` | MongoDB connection string |
-| `JWT_SECRET` | Secret key used for signing and verifying JWT tokens |
+| `PORT` | Backend server port (e.g. `8000`) |
+| `ATLASDB_URL` | MongoDB Atlas connection string |
+| `JWT_SECRET` | Secret key used for HMAC-SHA256 JWT signing & verification |
+| `FRONTEND_URL` | Allowed CORS origin(s) (e.g. `https://novacall-two.vercel.app,http://localhost:5173`) |
 
 ### Frontend
 | Variable | Description |
 | :--- | :--- |
-| `VITE_API_URL` | Backend API URL (e.g. `http://localhost:5000` or production URL) |
+| `VITE_API_URL` | Backend API URL (e.g. `http://localhost:8000` or production URL) |
+| `VITE_TURN_URL` | *(Optional)* Custom TURN relay server URL |
+| `VITE_TURN_USERNAME` | *(Optional)* TURN server username |
+| `VITE_TURN_CREDENTIAL` | *(Optional)* TURN server credential |
 
 ---
 
-## 🔒 Security Considerations
+## 🔒 Security & Reliability Architecture
 
-NovaCall includes authentication and protected application functionality:
-- JWT Bearer token authentication middleware
-- Password hashing with bcrypt
-- Server-side host permission validation
-- In-meeting chat XSS sanitization
-
-*Note: The project is designed for educational and portfolio demonstration purposes.*
-
----
-
-## 🧪 Testing
-
-Planned test coverage includes:
-```
-Authentication
- ├── Registration
- ├── Login
- └── Protected routes
+NovaCall implements robust engineering and security standards:
+- **Stateless JWT Authentication**: Passwords hashed with bcrypt; access tokens signed with HMAC-SHA256 and verified through Express middleware (`req.user` binding).
+- **Strict CORS Origin Filtering**: Dynamic allowed origin configuration across both REST API endpoints and Socket.IO handshakes.
+- **WebRTC STUN + TURN Relay**: Direct peer-to-peer WebRTC connections with automatic fallback to TURN relay servers for restrictive corporate firewalls and symmetric NATs.
+- **Graceful Process Termination**: Catches `SIGTERM` and `SIGINT` to safely drain HTTP requests, disconnect Socket.IO peers, and close database connections cleanly.
+- **Automated CI/CD Pipeline**: GitHub Actions workflow (`.github/workflows/ci.yml`) validates backend syntax and builds the frontend on every push.
 Meetings
  ├── Create meeting
  ├── Join meeting
