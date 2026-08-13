@@ -1,0 +1,130 @@
+:root {
+  /* PRIMARY */
+  --primary: #60A5FA;
+  --primary-hover: #7DD3FC;
+  --primary-active: #3B82F6;
+  --primary-light: #93C5FD;
+  --primary-soft: #BAE6FD;
+  --primary-pale: #E0F2FE;
+  --primary-bg: #F0F7FF;
+
+  /* SECONDARY */
+  --secondary: #A78BFA;
+  --secondary-hover: #C4B5FD;
+  --secondary-active: #8B5CF6;
+  --secondary-light: #DDD6FE;
+  --secondary-soft: #EDE9FE;
+
+  /* ACCENT / CYAN */
+  --accent: #67E8F9;
+  --accent-hover: #A5F3FC;
+  --accent-active: #22D3EE;
+  --accent-light: #CFFAFE;
+  --accent-pale: #ECFEFF;
+
+  /* SUCCESS */
+  --success: #6EE7B7;
+  --success-hover: #A7F3D0;
+  --success-active: #34D399;
+  --success-soft: #D1FAE5;
+  --success-pale: #ECFDF5;
+
+  /* WARNING */
+  --warning: #FCD34D;
+  --warning-hover: #FDE68A;
+  --warning-active: #FBBF24;
+  --warning-soft: #FEF3C7;
+  --warning-pale: #FFFBEB;
+
+  /* DANGER / END CALL */
+  --danger: #FB7185;
+  --danger-hover: #FDA4AF;
+  --danger-active: #F43F5E;
+  --danger-soft: #FECDD3;
+  --danger-pale: #FFF1F2;
+
+  /* NEUTRAL & SURFACES */
+  --bg-app: #F8FAFC;
+  --bg-alt: #F1F5F9;
+  --surface-card: #FFFFFF;
+  --surface-hover: #F8FAFC;
+  --border: #E2E8F0;
+  --border-dark: #CBD5E1;
+
+  /* TEXT COLORS */
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --text-disabled: #64748B;
+
+  --card-shadow: 0 4px 20px 0 rgba(148, 163, 184, 0.12);
+  --elevation-high: 0 10px 30px 0 rgba(148, 163, 184, 0.2);
+  --font-heading: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-alt);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* Light Card & Button Utilities */
+.light-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
+  border-radius: 16px;
+}
+
+.glow-btn {
+  background-color: var(--primary) !important;
+  color: #FFFFFF !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+  text-transform: none !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 14px rgba(96, 165, 250, 0.35) !important;
+}
+
+.glow-btn:hover {
+  background-color: var(--primary-active) !important;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.45) !important;
+  transform: translateY(-1px);
+}
