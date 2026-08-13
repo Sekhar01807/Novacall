@@ -3,16 +3,10 @@ import { Server } from "socket.io"
 let connections = {}
 let messages = {}
 let timeOnline = {}
-let polls = {}
-let roomLocks = {}
-let qnaList = {}
 let roomHosts = {}
-let userNames = {} // Item 16: Map socketId -> display name
-let roomPasswords = {} // Item 31: Room passwords
-let waitingRooms = {} // Item 31: Waiting room user requests (room -> [{ socketId, username }])
-let coHosts = {} // Item 33: Co-Hosts (room -> [socketId])
+let userNames = {}
 
-// XSS Sanitization helper (Item 5)
+// XSS Sanitization helper
 const sanitizeHTML = (str) => {
     if (typeof str !== 'string') return '';
     return str
@@ -47,28 +41,8 @@ export const initializeSocketIO = (server) => {
         console.log("CLIENT CONNECTED:", socket.id);
 
         socket.on("join-call", (path, username) => {
-            if (roomLocks[path] === true) {
-                socket.emit("room-locked-error", "This meeting has been locked by the host.");
-                return;
-            }
-
             if (username) {
                 userNames[socket.id] = sanitizeHTML(username);
-            }
-
-            // Item 31: Password Check
-            if (password && roomPasswords[path] && password !== roomPasswords[path]) {
-                socket.emit("password-error", "Incorrect meeting password");
-                return;
-            }
-
-            // Item 31: Waiting Room Check
-            if (waitingRooms[path] && waitingRooms[path].enabled && roomHosts[path] !== socket.id) {
-                if (!waitingRooms[path].users) waitingRooms[path].users = [];
-                waitingRooms[path].users.push({ socketId: socket.id, username: userNames[socket.id] || "Participant" });
-                io.to(roomHosts[path]).emit("waiting-room-updated", waitingRooms[path].users);
-                socket.emit("waiting-room-entry");
-                return;
             }
 
             if (connections[path] === undefined) {
@@ -77,17 +51,16 @@ export const initializeSocketIO = (server) => {
             connections[path].push(socket.id)
             timeOnline[socket.id] = new Date();
 
-            // Item 1: Server-side host tracking — first user in room is host
+            // First user in room is designated as Host
             if (!roomHosts[path]) {
                 roomHosts[path] = socket.id;
             }
 
             // Emit host status to joining socket
             const isSocketHost = socket.id === roomHosts[path];
-            const isSocketCoHost = coHosts[path] ? coHosts[path].includes(socket.id) : false;
-            io.to(socket.id).emit("host-status", { isHost: isSocketHost, isCoHost: isSocketCoHost });
+            io.to(socket.id).emit("host-status", { isHost: isSocketHost });
 
-            // Item 16: Broadcast full userNames map to all room members
+            // Broadcast room participant names map
             const roomNamesMap = {};
             connections[path].forEach(sId => {
                 roomNamesMap[sId] = userNames[sId] || "Participant";
@@ -103,20 +76,13 @@ export const initializeSocketIO = (server) => {
                         messages[path][a]['sender'], messages[path][a]['socket-id-sender'], messages[path][a]['timestamp'])
                 }
             }
-
-            if (polls[path] !== undefined) {
-                io.to(socket.id).emit("poll-list", polls[path]);
-            }
-
-            if (qnaList[path] !== undefined) {
-                io.to(socket.id).emit("qna-list", qnaList[path]);
-            }
         })
 
         socket.on("signal", (toId, message) => {
             io.to(toId).emit("signal", socket.id, message);
         })
 
+        // Real-Time Chat Handler
         socket.on("chat-message", (data, sender) => {
             const [matchingRoom, found] = findRoomForSocket(socket.id);
 
@@ -125,10 +91,8 @@ export const initializeSocketIO = (server) => {
                     messages[matchingRoom] = []
                 }
 
-                // Item 5: Sanitize chat messages for XSS protection
                 const sanitizedData = sanitizeHTML(data);
                 const sanitizedSender = sanitizeHTML(sender);
-                // Item 13: Add timestamp
                 const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
                 messages[matchingRoom].push({ 'sender': sanitizedSender, "data": sanitizedData, "socket-id-sender": socket.id, "timestamp": timestamp })
@@ -138,7 +102,7 @@ export const initializeSocketIO = (server) => {
             }
         })
 
-        // Item 15: Sync Mute / Camera State across participants
+        // Sync Mute / Camera State across participants
         socket.on("toggle-media-state", (mediaType, isEnabled) => {
             const [matchingRoom, found] = findRoomForSocket(socket.id);
             if (found) {
@@ -150,264 +114,8 @@ export const initializeSocketIO = (server) => {
             }
         });
 
-        // Shared Meeting Notes
-        socket.on("sync-notes", (notes) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found) {
-                connections[matchingRoom].forEach((elem) => {
-                    if (elem !== socket.id) {
-                        io.to(elem).emit("receive-notes", notes);
-                    }
-                });
-            }
-        });
-
-        // Live Reactions
-        socket.on("send-reaction", (emoji, sender) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found) {
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("receive-reaction", emoji, sender, socket.id);
-                });
-            }
-        });
-
-        // Hand Raising
-        socket.on("raise-hand", (raised, sender) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found) {
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("user-raised-hand", socket.id, sender, raised);
-                });
-            }
-        });
-
-        // Live Polls
-        socket.on("create-poll", (pollData) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found) {
-                if (!polls[matchingRoom]) polls[matchingRoom] = [];
-                polls[matchingRoom].push(pollData);
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("poll-list", polls[matchingRoom]);
-                });
-            }
-        });
-
-        socket.on("vote-poll", (pollId, optionIndex) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found && polls[matchingRoom]) {
-                polls[matchingRoom] = polls[matchingRoom].map(p => {
-                    if (p.id === pollId) {
-                        const updatedOpts = p.options.map((opt, idx) =>
-                            idx === optionIndex ? { ...opt, votes: opt.votes + 1 } : opt
-                        );
-                        return { ...p, options: updatedOpts, totalVotes: p.totalVotes + 1 };
-                    }
-                    return p;
-                });
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("poll-list", polls[matchingRoom]);
-                });
-            }
-        });
-
-        socket.on("end-poll", (pollId) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found && polls[matchingRoom]) {
-                polls[matchingRoom] = polls[matchingRoom].map(p => 
-                    p.id === pollId ? { ...p, status: 'closed' } : p
-                );
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("poll-list", polls[matchingRoom]);
-                });
-            }
-        });
-
-        socket.on("delete-poll", (pollId) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found && polls[matchingRoom]) {
-                polls[matchingRoom] = polls[matchingRoom].filter(p => p.id !== pollId);
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("poll-list", polls[matchingRoom]);
-                });
-            }
-        });
-
-        // Real-Time Q&A Handlers
-        socket.on("ask-question", (questionData) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found) {
-                if (!qnaList[matchingRoom]) qnaList[matchingRoom] = [];
-                qnaList[matchingRoom].push(questionData);
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("qna-list", qnaList[matchingRoom]);
-                });
-            }
-        });
-
-        socket.on("upvote-question", (questionId) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found && qnaList[matchingRoom]) {
-                qnaList[matchingRoom] = qnaList[matchingRoom].map(q => 
-                    q.id === questionId ? { ...q, upvotes: (q.upvotes || 0) + 1 } : q
-                );
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("qna-list", qnaList[matchingRoom]);
-                });
-            }
-        });
-
-        socket.on("answer-question", (questionId) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found && qnaList[matchingRoom]) {
-                qnaList[matchingRoom] = qnaList[matchingRoom].map(q => 
-                    q.id === questionId ? { ...q, answered: true } : q
-                );
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("qna-list", qnaList[matchingRoom]);
-                });
-            }
-        });
-
-        socket.on("delete-question", (questionId) => {
-            const [matchingRoom, found] = Object.entries(connections)
-                .reduce(([room, isFound], [roomKey, roomValue]) => {
-                    if (!isFound && roomValue.includes(socket.id)) {
-                        return [roomKey, true];
-                    }
-                    return [room, isFound];
-                }, ['', false]);
-
-            if (found && qnaList[matchingRoom]) {
-                qnaList[matchingRoom] = qnaList[matchingRoom].filter(q => q.id !== questionId);
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("qna-list", qnaList[matchingRoom]);
-                });
-            }
-        });
-
-        // Item 33: Co-Host Role Promotion
-        socket.on("promote-cohost", (targetSocketId) => {
-            const [matchingRoom, found] = findRoomForSocket(socket.id);
-            if (found && (roomHosts[matchingRoom] === socket.id)) {
-                if (!coHosts[matchingRoom]) coHosts[matchingRoom] = [];
-                if (!coHosts[matchingRoom].includes(targetSocketId)) {
-                    coHosts[matchingRoom].push(targetSocketId);
-                }
-                io.to(targetSocketId).emit("host-status", { isHost: false, isCoHost: true });
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("cohost-promoted", targetSocketId, userNames[targetSocketId] || "Participant");
-                });
-            }
-        });
-
-        // Item 34: Recording Notification Broadcast
-        socket.on("toggle-session-recording", (isRecording) => {
-            const [matchingRoom, found] = findRoomForSocket(socket.id);
-            if (found) {
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("recording-status-changed", isRecording, userNames[socket.id] || "Host");
-                });
-            }
-        });
-
-        // Item 31: Meeting Password & Waiting Room Controls
-        socket.on("set-room-password", (password) => {
-            const [matchingRoom, found] = findRoomForSocket(socket.id);
-            if (found && roomHosts[matchingRoom] === socket.id) {
-                roomPasswords[matchingRoom] = password;
-            }
-        });
-
-        socket.on("toggle-waiting-room", (enabled) => {
-            const [matchingRoom, found] = findRoomForSocket(socket.id);
-            if (found && roomHosts[matchingRoom] === socket.id) {
-                if (!waitingRooms[matchingRoom]) waitingRooms[matchingRoom] = { enabled: false, users: [] };
-                waitingRooms[matchingRoom].enabled = enabled;
-            }
-        });
-
-        socket.on("approve-waiting-user", (targetSocketId) => {
-            const [matchingRoom, found] = findRoomForSocket(socket.id);
-            if (found && (roomHosts[matchingRoom] === socket.id || (coHosts[matchingRoom] && coHosts[matchingRoom].includes(socket.id)))) {
-                if (waitingRooms[matchingRoom]) {
-                    waitingRooms[matchingRoom].users = waitingRooms[matchingRoom].users.filter(u => u.socketId !== targetSocketId);
-                    io.to(socket.id).emit("waiting-room-updated", waitingRooms[matchingRoom].users);
-                }
-                io.to(targetSocketId).emit("waiting-room-approved");
-            }
-        });
+        // Host Controls (Server-side Host Validated)
+        socket.on("host-mute-user", (targetSocketId) => {
             const [matchingRoom, found] = findRoomForSocket(socket.id);
             if (found && roomHosts[matchingRoom] === socket.id) {
                 io.to(targetSocketId).emit("force-mute-audio");
@@ -421,15 +129,6 @@ export const initializeSocketIO = (server) => {
             }
         });
 
-        socket.on("toggle-chat-permission", (allowChat) => {
-            const [matchingRoom, found] = findRoomForSocket(socket.id);
-            if (found && roomHosts[matchingRoom] === socket.id) {
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("chat-permission-updated", allowChat);
-                });
-            }
-        });
-
         socket.on("end-meeting-all", () => {
             const [matchingRoom, found] = findRoomForSocket(socket.id);
             if (found && roomHosts[matchingRoom] === socket.id) {
@@ -439,34 +138,21 @@ export const initializeSocketIO = (server) => {
             }
         });
 
-        socket.on("toggle-room-lock", (isLocked) => {
-            const [matchingRoom, found] = findRoomForSocket(socket.id);
-            if (found && roomHosts[matchingRoom] === socket.id) {
-                roomLocks[matchingRoom] = isLocked;
-                connections[matchingRoom].forEach((elem) => {
-                    io.to(elem).emit("room-lock-updated", isLocked);
-                });
-            }
-        });
-
         socket.on("disconnect", () => {
-            var diffTime = Math.abs(timeOnline[socket.id] - new Date())
-            var key
-
             for (const [k, v] of JSON.parse(JSON.stringify(Object.entries(connections)))) {
                 for (let a = 0; a < v.length; ++a) {
                     if (v[a] === socket.id) {
-                        key = k
+                        let key = k;
                         for (let a = 0; a < connections[key].length; ++a) {
-                            io.to(connections[key][a]).emit('user-left', socket.id)
+                            io.to(connections[key][a]).emit('user-left', socket.id);
                         }
-                        var index = connections[key].indexOf(socket.id)
-                        connections[key].splice(index, 1)
+                        let index = connections[key].indexOf(socket.id);
+                        connections[key].splice(index, 1);
+                        delete userNames[socket.id];
 
-                        // Item 1: Host promotion on disconnect
+                        // Host promotion on disconnect
                         if (roomHosts[key] === socket.id) {
                             if (connections[key] && connections[key].length > 0) {
-                                // Promote next participant to host
                                 roomHosts[key] = connections[key][0];
                                 io.to(connections[key][0]).emit("host-status", { isHost: true });
                             } else {
@@ -475,10 +161,9 @@ export const initializeSocketIO = (server) => {
                         }
 
                         if (connections[key].length === 0) {
-                            delete connections[key]
-                            delete polls[key]
-                            delete roomLocks[key]
-                            delete roomHosts[key]
+                            delete connections[key];
+                            delete messages[key];
+                            delete roomHosts[key];
                         }
                     }
                 }
