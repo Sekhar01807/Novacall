@@ -556,6 +556,31 @@ const deleteScheduledMeeting = async (req, res) => {
     }
 };
 
+// Item 35: Persist Meeting Notes
+const meetingNotesStore = new Map(); // In-memory store (meetingCode -> notes)
+
+const saveMeetingNotes = async (req, res) => {
+    const { meeting_code, notes } = req.body;
+    if (!meeting_code) return res.status(400).json({ message: "Meeting code is required" });
+    try {
+        meetingNotesStore.set(meeting_code, notes || "");
+        res.json({ message: "Meeting notes saved successfully" });
+    } catch (e) {
+        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+    }
+};
+
+const getMeetingNotes = async (req, res) => {
+    const { meeting_code } = req.query;
+    if (!meeting_code) return res.status(400).json({ message: "Meeting code is required" });
+    try {
+        const notes = meetingNotesStore.get(meeting_code) || "";
+        res.json({ notes });
+    } catch (e) {
+        res.status(500).json({ message: `Something went wrong: ${e.message}` });
+    }
+};
+
 export { 
     login as loginUser, 
     register as registerUser, 
@@ -570,5 +595,7 @@ export {
     resetPasswordWithCode,
     createScheduledMeeting,
     getUpcomingMeetings,
-    deleteScheduledMeeting
+    deleteScheduledMeeting,
+    saveMeetingNotes,
+    getMeetingNotes
 };

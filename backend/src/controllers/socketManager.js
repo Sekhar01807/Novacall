@@ -8,6 +8,9 @@ let roomLocks = {}
 let qnaList = {}
 let roomHosts = {}
 let userNames = {} // Item 16: Map socketId -> display name
+let roomPasswords = {} // Item 31: Room passwords
+let waitingRooms = {} // Item 31: Waiting room user requests (room -> [{ socketId, username }])
+let coHosts = {} // Item 33: Co-Hosts (room -> [socketId])
 
 // XSS Sanitization helper (Item 5)
 const sanitizeHTML = (str) => {
@@ -53,6 +56,21 @@ export const initializeSocketIO = (server) => {
                 userNames[socket.id] = sanitizeHTML(username);
             }
 
+            // Item 31: Password Check
+            if (password && roomPasswords[path] && password !== roomPasswords[path]) {
+                socket.emit("password-error", "Incorrect meeting password");
+                return;
+            }
+
+            // Item 31: Waiting Room Check
+            if (waitingRooms[path] && waitingRooms[path].enabled && roomHosts[path] !== socket.id) {
+                if (!waitingRooms[path].users) waitingRooms[path].users = [];
+                waitingRooms[path].users.push({ socketId: socket.id, username: userNames[socket.id] || "Participant" });
+                io.to(roomHosts[path]).emit("waiting-room-updated", waitingRooms[path].users);
+                socket.emit("waiting-room-entry");
+                return;
+            }
+
             if (connections[path] === undefined) {
                 connections[path] = []
             }
@@ -65,7 +83,9 @@ export const initializeSocketIO = (server) => {
             }
 
             // Emit host status to joining socket
-            io.to(socket.id).emit("host-status", { isHost: socket.id === roomHosts[path] });
+            const isSocketHost = socket.id === roomHosts[path];
+            const isSocketCoHost = coHosts[path] ? coHosts[path].includes(socket.id) : false;
+            io.to(socket.id).emit("host-status", { isHost: isSocketHost, isCoHost: isSocketCoHost });
 
             // Item 16: Broadcast full userNames map to all room members
             const roomNamesMap = {};
@@ -337,8 +357,57 @@ export const initializeSocketIO = (server) => {
             }
         });
 
-        // Host Controls — Item 1: Server-side host validation
-        socket.on("host-mute-user", (targetSocketId) => {
+        // Item 33: Co-Host Role Promotion
+        socket.on("promote-cohost", (targetSocketId) => {
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
+            if (found && (roomHosts[matchingRoom] === socket.id)) {
+                if (!coHosts[matchingRoom]) coHosts[matchingRoom] = [];
+                if (!coHosts[matchingRoom].includes(targetSocketId)) {
+                    coHosts[matchingRoom].push(targetSocketId);
+                }
+                io.to(targetSocketId).emit("host-status", { isHost: false, isCoHost: true });
+                connections[matchingRoom].forEach((elem) => {
+                    io.to(elem).emit("cohost-promoted", targetSocketId, userNames[targetSocketId] || "Participant");
+                });
+            }
+        });
+
+        // Item 34: Recording Notification Broadcast
+        socket.on("toggle-session-recording", (isRecording) => {
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
+            if (found) {
+                connections[matchingRoom].forEach((elem) => {
+                    io.to(elem).emit("recording-status-changed", isRecording, userNames[socket.id] || "Host");
+                });
+            }
+        });
+
+        // Item 31: Meeting Password & Waiting Room Controls
+        socket.on("set-room-password", (password) => {
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
+            if (found && roomHosts[matchingRoom] === socket.id) {
+                roomPasswords[matchingRoom] = password;
+            }
+        });
+
+        socket.on("toggle-waiting-room", (enabled) => {
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
+            if (found && roomHosts[matchingRoom] === socket.id) {
+                if (!waitingRooms[matchingRoom]) waitingRooms[matchingRoom] = { enabled: false, users: [] };
+                waitingRooms[matchingRoom].enabled = enabled;
+            }
+        });
+
+        socket.on("approve-waiting-user", (targetSocketId) => {
+            const [matchingRoom, found] = findRoomForSocket(socket.id);
+            if (found && (roomHosts[matchingRoom] === socket.id || (coHosts[matchingRoom] && coHosts[matchingRoom].includes(socket.id)))) {
+                if (waitingRooms[matchingRoom]) {
+                    waitingRooms[matchingRoom].users = waitingRooms[matchingRoom].users.filter(u => u.socketId !== targetSocketId);
+                    io.to(socket.id).emit("waiting-room-updated", waitingRooms[matchingRoom].users);
+                }
+                io.to(targetSocketId).emit("waiting-room-approved");
+            }
+        });
             const [matchingRoom, found] = findRoomForSocket(socket.id);
             if (found && roomHosts[matchingRoom] === socket.id) {
                 io.to(targetSocketId).emit("force-mute-audio");

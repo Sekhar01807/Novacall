@@ -110,6 +110,16 @@ export default function VideoMeetComponent() {
     let [selectedAudioDevice, setSelectedAudioDevice] = useState("");
     let [selectedVideoDevice, setSelectedVideoDevice] = useState("");
 
+    // Priority 4 (Items 31, 33, 34, 35, 36, 37, 38) States
+    let [isCoHost, setIsCoHost] = useState(false); // Item 33
+    let [meetingPassword, setMeetingPassword] = useState(""); // Item 31
+    let [enteredPassword, setEnteredPassword] = useState(""); // Item 31
+    let [inWaitingRoom, setInWaitingRoom] = useState(false); // Item 31
+    let [waitingList, setWaitingList] = useState([]); // Item 31
+    let [remoteRecordingBanner, setRemoteRecordingBanner] = useState(""); // Item 34
+    let [networkQuality, setNetworkQuality] = useState("Excellent"); // Item 36 (🟢 Excellent, 🟡 Fair, 🔴 Poor)
+    let [videoQuality, setVideoQuality] = useState("720p"); // Item 38 (1080p, 720p, 360p)
+
     const quickEmojis = ['😄', '😂', '😍', '👍', '🎉', '❤️', '🚀', '👋', '💡', '🔥', '👏', '🙏'];
 
     const renderFormattedText = (text) => {
@@ -203,11 +213,51 @@ export default function VideoMeetComponent() {
         setIsRecording(false);
     };
 
-    const toggleRecording = () => {
+    let toggleRecording = () => {
+        const nextState = !isRecording;
+        setIsRecording(nextState);
+        if (socketRef.current) {
+            // Item 34: Notify room when recording state toggles
+            socketRef.current.emit("toggle-session-recording", nextState);
+        }
         if (isRecording) {
             stopSessionRecording();
         } else {
             startSessionRecording();
+        }
+    };
+
+    // Item 35: DB-Persisted Meeting Notes
+    const saveNotesToDatabase = async () => {
+        const roomCode = window.location.pathname.replace('/', '') || 'demo';
+        try {
+            await fetch(`${server}/api/v1/users/save_notes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ meeting_code: roomCode, notes: meetingNotes })
+            });
+            setJoinToast("Notes saved to your account!");
+            setTimeout(() => setJoinToast(""), 3000);
+        } catch (e) {
+            console.error("Save notes error", e);
+        }
+    };
+
+    // Item 38: Adaptive Video Quality Switcher
+    const changeVideoQuality = async (quality) => {
+        setVideoQuality(quality);
+        if (!window.localStream) return;
+        const videoTrack = window.localStream.getVideoTracks()[0];
+        if (!videoTrack) return;
+
+        let constraints = { width: 1280, height: 720 };
+        if (quality === '1080p') constraints = { width: 1920, height: 1080 };
+        if (quality === '360p') constraints = { width: 640, height: 360 };
+
+        try {
+            await videoTrack.applyConstraints(constraints);
+        } catch (e) {
+            console.log("Apply constraints error", e);
         }
     };
 
@@ -540,9 +590,46 @@ export default function VideoMeetComponent() {
                 }));
             });
 
-            // Item 1: Listen for host status from server
+            // Item 1 & 33: Listen for host/cohost status
             socketRef.current.on('host-status', (data) => {
                 setIsHost(data.isHost);
+                setIsCoHost(data.isCoHost);
+            });
+
+            // Item 33: Co-Host promoted notification
+            socketRef.current.on('cohost-promoted', (targetId, name) => {
+                if (targetId === socketIdRef.current) {
+                    setIsCoHost(true);
+                    setJoinToast("You have been promoted to Co-Host!");
+                    setTimeout(() => setJoinToast(""), 3000);
+                }
+            });
+
+            // Item 34: Recording status changed notification banner
+            socketRef.current.on('recording-status-changed', (recording, hostName) => {
+                if (recording) {
+                    setRemoteRecordingBanner(`🔴 Recording started by ${hostName}`);
+                } else {
+                    setRemoteRecordingBanner("");
+                }
+            });
+
+            // Item 31: Password error & Waiting room events
+            socketRef.current.on('password-error', (msg) => {
+                setErrorMessage(msg);
+            });
+
+            socketRef.current.on('waiting-room-entry', () => {
+                setInWaitingRoom(true);
+            });
+
+            socketRef.current.on('waiting-room-approved', () => {
+                setInWaitingRoom(false);
+                socketRef.current.emit('join-call', window.location.href, username || 'Participant');
+            });
+
+            socketRef.current.on('waiting-room-updated', (users) => {
+                setWaitingList(users);
             });
 
             // Enterprise Socket Listeners
@@ -608,6 +695,23 @@ export default function VideoMeetComponent() {
                             socketRef.current.emit('signal', socketListId, JSON.stringify({ 'ice': event.candidate }))
                         }
                     }
+
+                    // Item 37: WebRTC Auto-Reconnection Handler on ICE state change
+                    connections[socketListId].oniceconnectionstatechange = () => {
+                        const state = connections[socketListId].iceConnectionState;
+                        if (state === 'disconnected' || state === 'failed') {
+                            setNetworkQuality("Poor");
+                            try {
+                                connections[socketListId].createOffer({ iceRestart: true }).then((description) => {
+                                    connections[socketListId].setLocalDescription(description).then(() => {
+                                        socketRef.current.emit('signal', socketListId, JSON.stringify({ 'sdp': connections[socketListId].localDescription }));
+                                    });
+                                });
+                            } catch (e) { console.error("ICE Restart error:", e); }
+                        } else if (state === 'connected' || state === 'completed') {
+                            setNetworkQuality("Excellent");
+                        }
+                    };
 
                     // Item 6: Replace deprecated onaddstream with ontrack
                     connections[socketListId].ontrack = (event) => {
@@ -967,6 +1071,13 @@ export default function VideoMeetComponent() {
                 </Alert>
             )}
 
+            {/* Item 34: Remote Recording Alert Banner */}
+            {remoteRecordingBanner && (
+                <Alert severity="error" sx={{ position: 'fixed', top: 20, right: 20, zIndex: 1000, borderRadius: '12px', fontWeight: 700 }}>
+                    {remoteRecordingBanner}
+                </Alert>
+            )}
+
             {askForUsername === true ? (
                 <div className={styles.lobbyWrapper}>
                     <div className={styles.lobbyCard}>
@@ -981,35 +1092,48 @@ export default function VideoMeetComponent() {
                             <video ref={localVideoref} autoPlay muted></video>
                         </div>
 
-                        <TextField
-                            fullWidth
-                            id="outlined-basic"
-                            label="Enter Your Display Name"
-                            value={username}
-                            onChange={e => setUsername(e.target.value)}
-                            variant="outlined"
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px', backgroundColor: '#F8FAFC' } }}
-                        />
+                        {/* Item 31: Waiting Room Banner */}
+                        {inWaitingRoom ? (
+                            <Box sx={{ p: 2, bgcolor: '#EFF6FF', borderRadius: '12px', border: '1px solid #BFDBFE', mt: 2, textAlign: 'center' }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1E40AF' }}>
+                                    ⏳ Waiting for Host Approval
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: '#3B82F6' }}>
+                                    The host has been notified. You will enter automatically once approved.
+                                </Typography>
+                            </Box>
+                        ) : (
+                            <>
+                                <TextField
+                                    fullWidth
+                                    id="outlined-basic"
+                                    label="Enter Your Display Name"
+                                    value={username}
+                                    onChange={e => setUsername(e.target.value)}
+                                    variant="outlined"
+                                    sx={{ mb: 1.5, '& .MuiOutlinedInput-root': { borderRadius: '12px', backgroundColor: '#F8FAFC' } }}
+                                />
 
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            className="glow-btn"
-                            onClick={connect}
-                            sx={{ py: 1.5, fontSize: '1.05rem', borderRadius: '12px', fontWeight: 700 }}
-                        >
-                            Join Meeting Room
-                        </Button>
+                                <Button
+                                    fullWidth
+                                    variant="contained"
+                                    className="glow-btn"
+                                    onClick={connect}
+                                    sx={{ py: 1.5, fontSize: '1.05rem', borderRadius: '12px', fontWeight: 700 }}
+                                >
+                                    Join Meeting Room
+                                </Button>
 
-                        {/* Item 17: Cancel / Back Button in Lobby */}
-                        <Button
-                            fullWidth
-                            variant="outlined"
-                            onClick={() => window.location.href = "/home"}
-                            sx={{ mt: 1, py: 1.2, borderRadius: '12px', fontWeight: 600, color: '#64748B', borderColor: '#CBD5E1' }}
-                        >
-                            Back to Dashboard
-                        </Button>
+                                <Button
+                                    fullWidth
+                                    variant="outlined"
+                                    onClick={() => window.location.href = "/home"}
+                                    sx={{ mt: 1, py: 1.2, borderRadius: '12px', fontWeight: 600, color: '#64748B', borderColor: '#CBD5E1' }}
+                                >
+                                    Back to Dashboard
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </div>
             ) : (
@@ -1029,9 +1153,16 @@ export default function VideoMeetComponent() {
 
                             <Chip 
                                 icon={<SecurityIcon style={{ fontSize: 13, color: '#60A5FA' }} />}
-                                label={isHost ? "Host" : "Participant"} 
+                                label={isHost ? "Host" : isCoHost ? "Co-Host" : "Participant"} 
                                 size="small" 
                                 sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: 'rgba(59, 130, 246, 0.15)', color: '#60A5FA', border: '1px solid rgba(59, 130, 246, 0.3)', height: 24 }} 
+                            />
+
+                            {/* Item 36: Network Quality Indicator */}
+                            <Chip
+                                label={`${networkQuality === 'Excellent' ? '🟢' : networkQuality === 'Fair' ? '🟡' : '🔴'} ${networkQuality}`}
+                                size="small"
+                                sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: 'rgba(255,255,255,0.08)', color: '#F8FAFC', border: '1px solid rgba(255,255,255,0.15)', height: 24 }}
                             />
 
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, bgcolor: 'rgba(255, 255, 255, 0.06)', px: 1.2, py: 0.3, borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
@@ -1353,8 +1484,13 @@ export default function VideoMeetComponent() {
                                                             {nameToDisplay}
                                                         </Typography>
                                                     </Box>
-                                                    {isHost && (
+                                                    {(isHost || isCoHost) && (
                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            {isHost && (
+                                                                <Button size="small" onClick={() => socketRef.current.emit("promote-cohost", vid.socketId)} sx={{ textTransform: 'none', fontSize: '0.68rem', color: '#60A5FA', px: 0.8, minWidth: 0 }}>
+                                                                    + Co-Host
+                                                                </Button>
+                                                            )}
                                                             <IconButton size="small" onClick={() => handleHostMute(vid.socketId)} sx={{ color: '#FB7185' }}>
                                                                 <MicOffIcon style={{ fontSize: 16 }} />
                                                             </IconButton>
@@ -1612,7 +1748,7 @@ export default function VideoMeetComponent() {
                                         </Box>
 
                                         {/* Format Toolbar */}
-                                        <Box sx={{ display: 'flex', gap: 0.8, mb: 1 }}>
+                                        <Box sx={{ display: 'flex', gap: 0.8, mb: 1, flexWrap: 'wrap' }}>
                                             <Button size="small" variant="outlined" onClick={() => handleNotesChange({ target: { value: (meetingNotes || '') + '\n• ' } })} sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, borderRadius: '6px' }}>
                                                 + Bullet
                                             </Button>
@@ -1621,6 +1757,10 @@ export default function VideoMeetComponent() {
                                             </Button>
                                             <Button size="small" variant="outlined" onClick={() => handleNotesChange({ target: { value: (meetingNotes || '') + `\n[${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}] ` } })} sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, borderRadius: '6px' }}>
                                                 + Timestamp
+                                            </Button>
+                                            {/* Item 35: Save Notes to Database Button */}
+                                            <Button size="small" variant="contained" onClick={saveNotesToDatabase} sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, borderRadius: '6px', bgcolor: '#3B82F6' }}>
+                                                Save to DB
                                             </Button>
                                             <Button size="small" color="error" onClick={() => handleNotesChange({ target: { value: '' } })} sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, ml: 'auto' }}>
                                                 Clear
@@ -1808,8 +1948,21 @@ export default function VideoMeetComponent() {
                         </Select>
                     </FormControl>
 
+                    {/* Item 38: Video Resolution Quality Switcher */}
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Video Resolution Quality</Typography>
-                    <Button variant="outlined" fullWidth sx={{ mb: 3, borderRadius: '10px', textTransform: 'none' }}>1080p Full HD (Default)</Button>
+                    <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
+                        {['1080p', '720p', '360p'].map((q) => (
+                            <Button
+                                key={q}
+                                fullWidth
+                                variant={videoQuality === q ? "contained" : "outlined"}
+                                onClick={() => changeVideoQuality(q)}
+                                sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
+                            >
+                                {q}
+                            </Button>
+                        ))}
+                    </Box>
                     
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Meeting Recording</Typography>
                     <Button

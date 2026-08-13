@@ -3,7 +3,7 @@ import {
     loginUser, registerUser, addToHistory, getUserHistory, getUserProfile, 
     updateUserProfile, changePassword, signOutAllDevices, deleteAccount,
     forgotPassword, resetPasswordWithCode, createScheduledMeeting,
-    getUpcomingMeetings, deleteScheduledMeeting 
+    getUpcomingMeetings, deleteScheduledMeeting, saveMeetingNotes, getMeetingNotes 
 } from "../controllers/user.controller.js";
 
 const router = Router();
@@ -24,5 +24,9 @@ router.route("/reset_password").post(resetPasswordWithCode);
 router.route("/create_scheduled_meeting").post(createScheduledMeeting);
 router.route("/get_upcoming_meetings").get(getUpcomingMeetings);
 router.route("/delete_scheduled_meeting/:id").delete(deleteScheduledMeeting);
+
+// Item 35 Routes
+router.route("/save_notes").post(saveMeetingNotes);
+router.route("/get_notes").get(getMeetingNotes);
 
 export default router;
