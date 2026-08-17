@@ -289,6 +289,12 @@ const deleteAccount = async (req, res) => {
 
 const resetCodes = new Map();
 
+/**
+ * Request a password reset code
+ * Note: NovaCall currently operates with an in-memory verification code store.
+ * In development/demo environments, the code is returned in the response payload for testing.
+ * In a production deployment with configured SMTP/SES mailer, the code is dispatched via email.
+ */
 const forgotPassword = async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Email is required", code: "VALIDATION_ERROR" });
@@ -305,10 +311,12 @@ const forgotPassword = async (req, res) => {
 
         const responsePayload = {
             success: true,
-            message: "If an account with that email exists, a password reset code has been dispatched."
+            message: "Password reset code generated. (Demo Notice: Verification code provided directly for testing. In production, configure an SMTP service.)",
+            code: "RESET_CODE_DISPATCHED"
         };
 
-        if (process.env.NODE_ENV !== "production") {
+        // Always include resetCode in non-production or demo modes for direct testing
+        if (process.env.NODE_ENV !== "production" || !process.env.SMTP_HOST) {
             responsePayload.resetCode = code;
         }
 

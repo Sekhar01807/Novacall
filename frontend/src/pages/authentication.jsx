@@ -672,6 +672,9 @@ export default function Authentication() {
                     Reset Password
                 </DialogTitle>
                 <DialogContent dividers>
+                    <Alert severity="warning" sx={{ mb: 2, borderRadius: 2, fontSize: '0.8rem' }}>
+                        <strong>Environment Notice:</strong> In this demo environment, reset verification codes are generated locally and displayed directly. In production, codes are delivered via email.
+                    </Alert>
                     {forgotErr && (
                         <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{forgotErr}</Alert>
                     )}
@@ -682,7 +685,7 @@ export default function Authentication() {
                     {forgotStep === 1 ? (
                         <Box>
                             <Typography variant="body2" sx={{ color: '#475569', mb: 2 }}>
-                                Enter your registered email address below. We'll generate a verification code to reset your password.
+                                Enter your registered email address below to generate a verification code.
                             </Typography>
                             <TextField
                                 fullWidth

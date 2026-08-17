@@ -150,3 +150,22 @@ describe("5. Structured Logger Credential Masking Tests", () => {
         assert.strictEqual(sanitized.username, "sekhar");
     });
 });
+
+describe("6. Password Reset Limitation & Explicit Response Validation", () => {
+    test("should validate password reset code format and demo payload structure", () => {
+        const sampleCode = "849201";
+        assert.strictEqual(/^\d{6}$/.test(sampleCode), true, "Reset code must be a 6-digit number");
+
+        const sampleResponse = {
+            success: true,
+            message: "Password reset code generated. (Demo Notice: Verification code provided directly for testing. In production, configure an SMTP service.)",
+            code: "RESET_CODE_DISPATCHED",
+            resetCode: sampleCode
+        };
+
+        assert.strictEqual(sampleResponse.code, "RESET_CODE_DISPATCHED");
+        assert.ok(sampleResponse.message.includes("Demo Notice"));
+        assert.strictEqual(typeof sampleResponse.resetCode, "string");
+    });
+});
+

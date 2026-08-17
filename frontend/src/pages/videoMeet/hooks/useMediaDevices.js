@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 export function useMediaDevices() {
     const [audio, setAudio] = useState(true);
@@ -10,6 +10,7 @@ export function useMediaDevices() {
     const [selectedAudioDevice, setSelectedAudioDevice] = useState("");
     const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
     const [permissionError, setPermissionError] = useState("");
+    const [permissionDenied, setPermissionDenied] = useState(false);
 
     const localVideoRef = useRef(null);
 
@@ -33,6 +34,7 @@ export function useMediaDevices() {
 
     const enumerateDevices = async () => {
         try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
             const devices = await navigator.mediaDevices.enumerateDevices();
             setAudioDevices(devices.filter(d => d.kind === 'audioinput'));
             setVideoDevices(devices.filter(d => d.kind === 'videoinput'));
@@ -41,12 +43,33 @@ export function useMediaDevices() {
         }
     };
 
-    const getUserMedia = async () => {
+    const stopMedia = useCallback(() => {
+        if (window.localStream) {
+            window.localStream.getTracks().forEach(track => {
+                try {
+                    track.stop();
+                } catch (e) {
+                    console.error("Error stopping track:", e);
+                }
+            });
+            window.localStream = null;
+        }
+        if (localVideoRef.current) {
+            localVideoRef.current.srcObject = null;
+        }
+    }, []);
+
+    const getUserMedia = useCallback(async () => {
         try {
-            if (navigator.mediaDevices.getDisplayMedia) {
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
                 setScreenAvailable(true);
             }
             await enumerateDevices();
+
+            // Stop existing tracks before requesting fresh media
+            if (window.localStream) {
+                window.localStream.getTracks().forEach(t => t.stop());
+            }
 
             const constraints = { video: video, audio: audio };
             if (constraints.video || constraints.audio) {
@@ -55,6 +78,8 @@ export function useMediaDevices() {
                 if (localVideoRef.current) {
                     localVideoRef.current.srcObject = stream;
                 }
+                setPermissionError("");
+                setPermissionDenied(false);
             } else {
                 window.localStream = blackSilence();
                 if (localVideoRef.current) {
@@ -62,13 +87,24 @@ export function useMediaDevices() {
                 }
             }
         } catch (err) {
-            setPermissionError("Camera or microphone permission denied. Using fallback stream.");
+            console.warn("getUserMedia failed with error:", err.name, err.message);
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                setPermissionDenied(true);
+                setPermissionError("Camera or microphone permission blocked. Please enable device access in your browser settings.");
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                setPermissionError("No camera or microphone device was detected on your system.");
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                setPermissionError("Camera or microphone is already in use by another application.");
+            } else {
+                setPermissionError(`Media access error: ${err.message || 'Unable to access audio/video devices.'}`);
+            }
+
             window.localStream = blackSilence();
             if (localVideoRef.current) {
                 localVideoRef.current.srcObject = window.localStream;
             }
         }
-    };
+    }, [audio, video]);
 
     const toggleAudio = () => {
         setAudio(prev => {
@@ -90,6 +126,13 @@ export function useMediaDevices() {
         });
     };
 
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            stopMedia();
+        };
+    }, [stopMedia]);
+
     return {
         audio,
         video,
@@ -104,9 +147,11 @@ export function useMediaDevices() {
         setSelectedVideoDevice,
         permissionError,
         setPermissionError,
+        permissionDenied,
         getUserMedia,
         toggleAudio,
         toggleVideo,
-        setScreen
+        setScreen,
+        stopMedia
     };
 }

@@ -4,16 +4,42 @@ import server from "../../../environment";
 class SocketService {
     socket = null;
 
-    connect() {
+    /**
+     * Connect to the Socket.IO server with JWT token authentication and guest fallback
+     * @param {string} [customToken]
+     * @param {string} [guestDisplayName]
+     * @returns {import('socket.io-client').Socket}
+     */
+    connect(customToken, guestDisplayName) {
         if (!this.socket) {
-            this.socket = io.connect(server, { secure: false });
+            const token = customToken || localStorage.getItem("token") || null;
+            const guestName = guestDisplayName || localStorage.getItem("guestDisplayName") || "Guest";
+
+            this.socket = io(server, {
+                auth: {
+                    token: token,
+                    guestName: guestName
+                },
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                timeout: 10000,
+                transports: ["websocket", "polling"]
+            });
         }
         return this.socket;
     }
 
-    joinCall(username) {
+    /**
+     * Join a call room
+     * @param {string} roomCodeOrUrl
+     * @param {string} displayName
+     */
+    joinCall(roomCodeOrUrl, displayName) {
         if (this.socket) {
-            this.socket.emit("join-call", window.location.href, username || "Participant");
+            const target = roomCodeOrUrl || window.location.pathname.replace(/^\/+/, '');
+            this.socket.emit("join-call", target, displayName || "Participant");
         }
     }
 
@@ -53,8 +79,21 @@ class SocketService {
         }
     }
 
+    leaveCall() {
+        if (this.socket) {
+            this.socket.emit("leave-call");
+        }
+    }
+
+    removeAllListeners() {
+        if (this.socket) {
+            this.socket.removeAllListeners();
+        }
+    }
+
     disconnect() {
         if (this.socket) {
+            this.socket.removeAllListeners();
             this.socket.disconnect();
             this.socket = null;
         }

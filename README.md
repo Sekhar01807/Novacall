@@ -206,15 +206,21 @@ Novacall/
 │       └── ci.yml                 # Node 22 CI pipeline (npm ci, tests, build)
 ├── backend/
 │   ├── src/
-│   │   ├── controllers/          # user.controller.js, socketManager.js
+│   │   ├── controllers/          # user.controller.js, socketManager.js (re-exporter)
 │   │   ├── docs/                 # OpenAPI 3.0 specification & Swagger UI
 │   │   ├── middleware/           # auth.middleware.js (Bearer token verification)
 │   │   ├── models/               # UserModel.js, meetingModel.js, scheduledMeetingModel.js
 │   │   ├── routes/               # UsersRoutes.js
+│   │   ├── sockets/              # Modular Socket.IO architecture
+│   │   │   ├── middleware/       # socketAuth.middleware.js (Handshake JWT auth)
+│   │   │   ├── handlers/         # room.handler.js, signaling.handler.js, chat.handler.js, media.handler.js, moderation.handler.js
+│   │   │   ├── roomState.js      # In-memory room, host, participant, and message store
+│   │   │   └── index.js          # Socket initialization & event routing
 │   │   ├── utils/                # jwt.js, logger.js
 │   │   └── app.js                # Server entry point & graceful shutdown
 │   ├── tests/
-│   │   └── api.test.js           # Automated test suite (node --test)
+│   │   ├── api.test.js           # REST API, JWT, security, & validation tests
+│   │   └── socket.test.js        # Socket.IO room lifecycle, host moderation, & disconnect tests
 │   ├── .dockerignore
 │   ├── .env.example
 │   ├── .gitignore
@@ -386,21 +392,30 @@ NovaCall implements robust engineering and security standards:
 
 ## 🧪 Automated Testing Suite
 
-Run the backend automated unit and security test suite:
+Run the full backend automated test suite (powered by Node.js built-in `node:test` runner):
 
 ```bash
 cd backend
 npm test
 ```
 
-Test coverage includes:
+### 1. REST API, Security & Validation Tests (`tests/api.test.js`)
 - ✅ JWT access token signing & signature verification
-- ✅ Tampered token detection & rejection
+- ✅ Tampered token detection & signature rejection
 - ✅ Expired token invalidation
-- ✅ Password complexity and email format validation
+- ✅ Password complexity and RFC-compliant email regex validation
 - ✅ In-meeting chat XSS HTML sanitization
-- ✅ OpenAPI 3.0 specification integrity
-- ✅ Logger credential masking and redaction
+- ✅ OpenAPI 3.0 documentation completeness and route parity
+- ✅ Structured logger credential masking & secret redaction
+- ✅ Password reset limitation response payload structure
+
+### 2. Socket.IO Real-Time Architecture & Authorization Tests (`tests/socket.test.js`)
+- ✅ **Socket Authentication**: JWT token verification on handshake and structured guest fallback
+- ✅ **Identity Spoof Prevention**: Server-enforces genuine display names from JWT claims
+- ✅ **Room Lifecycle**: Room creation, participant tracking, host status assignment, and duplicate join resolution
+- ✅ **Signaling Boundary Isolation**: Intra-room WebRTC SDP/ICE routing permitted; cross-room signals blocked
+- ✅ **Server-Side Host Authorization**: Host mute, kick, and end-meeting controls strictly enforced; non-host actions rejected
+- ✅ **Disconnection & Host Succession**: Automatic host promotion on disconnect and complete memory teardown when empty
 
 ---
 
@@ -429,29 +444,41 @@ Test coverage includes:
 ## 🧠 Key Engineering Concepts
 
 NovaCall was built to understand and apply several important full-stack concepts:
+- **Modular Socket Architecture**: Decomposed real-time handlers (`auth`, `roomState`, `room`, `signaling`, `chat`, `media`, `moderation`).
 - **Client-server architecture**: Clean separation of React frontend and Node.js REST / WebSocket backend.
-- **REST API design**: Structured HTTP endpoints with status codes and validation.
-- **JWT authentication**: Stateless token verification with Express middleware.
+- **REST API design**: Structured HTTP endpoints with status codes, validation, and Bearer token auth middleware.
+- **JWT authentication**: Stateless token verification with Express middleware and Socket.IO handshake interception.
 - **Password hashing**: Secure password storage using bcrypt with salt rounds.
 - **MongoDB data modeling**: Mongoose schemas and relationships for users, history, and scheduled meetings.
-- **Real-time communication**: Event-driven WebSocket communication via Socket.IO.
-- **WebRTC peer connections**: Interactive video, audio, and screen sharing across browser endpoints.
+- **Real-time communication**: Event-driven WebSocket communication via Socket.IO with server-side authorization.
+- **WebRTC peer connections**: Interactive video, audio, and screen sharing across browser endpoints with STUN/TURN traversal.
 - **React component architecture**: Modular component hierarchy, custom hooks, and context state management.
 
 ---
 
-## 🚧 Known Limitations & Production Roadmap
+## 🚧 Current Limitations & Engineering Trade-offs
 
-### Known Limitations:
-- **P2P Mesh Scalability**: Direct peer-to-peer WebRTC mesh is bandwidth-optimal for 1-on-1 and small team calls (up to 4–5 participants); enterprise conference rooms with 20+ peers require a Selective Forwarding Unit (SFU).
-- **In-Memory Signaling & Rate Limit State**: Active room socket states, host assignments, and rate limiting counters are held in-memory on the backend process. Suitable for single-instance hosting; multi-instance horizontal scaling requires a shared Redis adapter and sticky sessions.
-- **Simulated Password Reset Dispatch**: The demo password reset flow logs and simulates verification code delivery rather than binding to a live paid third-party transactional email service (e.g. SendGrid / Resend).
+To provide full engineering transparency, NovaCall's current architectural trade-offs are documented below:
 
-### 🔮 Production Architecture Roadmap:
-- **SFU Media Gateway**: Transitioning to mediasoup / pion for server-side video stream routing and bandwidth optimization.
-- **Redis Multi-Node Signaling**: Implementing `@socket.io/redis-adapter` for distributed pub/sub across load-balanced backend instances.
-- **Transactional Email Service**: Integrating Resend / SendGrid with cryptographically signed time-limited password reset tokens.
-- **Automated E2E Testing**: Headless browser multi-peer video/audio integration tests using Playwright.
+### 1. P2P Mesh Topology
+- **Current Behavior**: Video and audio streams are exchanged directly peer-to-peer between client browsers in a full-mesh topology.
+- **Trade-off**: Highly cost-effective (zero media server bandwidth costs) and ultra-low latency for 2–6 participants. For large meetings (20+ participants), an upstream Selective Forwarding Unit (SFU) like mediasoup/Pion is recommended to reduce client uplink load from $O(N)$ to $O(1)$.
+
+### 2. In-Memory Active Room State
+- **Current Behavior**: Active meeting rooms, participant maps, host status, and rate-limiting records reside in the signaling server's memory.
+- **Trade-off**: Zero external latency and optimal performance for single-instance signaling. For multi-node horizontal scaling behind a load balancer, a shared Redis adapter (`@socket.io/redis-adapter`) and sticky sessions are recommended.
+
+### 3. Simulated Email Verification Delivery
+- **Current Behavior**: The password reset workflow generates secure 6-digit verification codes in-memory, returning them in the response payload during demo/development mode.
+- **Trade-off**: Eliminates third-party transactional email dependencies (SendGrid/Resend) for demonstration and testing. In a production environment, configuring an SMTP provider delivers codes to registered user mailboxes.
+
+---
+
+## 🔮 Production Roadmap
+- **SFU Media Gateway**: Transitioning to mediasoup / Pion for server-side video routing in large conference rooms.
+- **Redis Distributed Pub/Sub**: Integrating `@socket.io/redis-adapter` for multi-instance cluster deployments.
+- **Live SMTP / Transactional Mailer**: Integrating Resend / AWS SES with cryptographically signed time-limited reset links.
+- **Headless E2E Multi-Peer Tests**: Multi-browser WebRTC integration testing with Playwright.
 
 ---
 

@@ -81,7 +81,8 @@ export const openapiSpecification = {
         },
         "/forgot_password": {
             post: {
-                summary: "Initiate password reset flow and receive verification code",
+                summary: "Initiate password reset flow (In-memory code generation in demo/dev mode)",
+                description: "Generates a 6-digit verification code. In development/demo environments, the code is returned in the response for direct testing. In production, configure SMTP for email dispatch.",
                 tags: ["Authentication"],
                 requestBody: {
                     required: true,
@@ -98,7 +99,7 @@ export const openapiSpecification = {
                     }
                 },
                 responses: {
-                    200: { description: "Reset code generated" },
+                    200: { description: "Reset code generated and dispatched" },
                     404: { description: "Account not found" }
                 }
             }
