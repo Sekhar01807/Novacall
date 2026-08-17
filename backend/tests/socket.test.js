@@ -36,7 +36,7 @@ describe("Socket.IO", () => {
     let aliceToken;
     let bobToken;
 
-    before((_, done) => {
+    before(async () => {
         process.env.JWT_SECRET = testSecret;
         aliceToken = signJWT(userAlice, testSecret, "1h");
         bobToken = signJWT(userBob, testSecret, "1h");
@@ -44,245 +44,264 @@ describe("Socket.IO", () => {
         httpServer = createServer();
         ioServer = initializeSocketIO(httpServer);
 
-        httpServer.listen(0, () => {
-            serverPort = httpServer.address().port;
-            done();
+        await new Promise((resolve) => {
+            httpServer.listen(0, () => {
+                serverPort = httpServer.address().port;
+                resolve();
+            });
         });
     });
 
-    after((_, done) => {
+    after(async () => {
         ioServer.close();
-        httpServer.close(done);
+        await new Promise((resolve) => httpServer.close(resolve));
     });
 
     beforeEach(() => {
         resetAllRooms();
     });
 
-    const createClientSocket = (auth = {}) => {
-        return Client(`http://localhost:${serverPort}`, {
-            auth,
-            transports: ["websocket"],
-            forceNew: true
+    const connectClient = (auth = {}) => {
+        return new Promise((resolve, reject) => {
+            const socket = Client(`http://localhost:${serverPort}`, {
+                auth,
+                transports: ["websocket"],
+                forceNew: true
+            });
+            socket.on("connect", () => resolve(socket));
+            socket.on("connect_error", (err) => reject(err));
         });
     };
 
-    test("connect", (t, done) => {
-        const client = createClientSocket({ guestName: "Guest User" });
-        client.on("connect", () => {
-            assert.ok(client.id, "Client socket must receive connection ID");
-            client.disconnect();
-            done();
-        });
+    test("connect", async () => {
+        const client = await connectClient({ guestName: "Guest User" });
+        assert.ok(client.id, "Client socket must receive connection ID");
+        client.disconnect();
     });
 
-    test("authenticate", (t, done) => {
-        const client = createClientSocket({ token: aliceToken });
-        client.on("connect", () => {
+    test("authenticate", async () => {
+        const client = await connectClient({ token: aliceToken });
+        
+        await new Promise((resolve) => {
             client.emit("join-call", "auth-test-room");
-            client.on("host-status", () => {
+            client.once("host-status", () => {
                 const room = getRoom("auth-test-room");
                 assert.ok(room);
                 const participant = room.participants.get(client.id);
                 assert.strictEqual(participant.displayName, "Alice Williams");
                 assert.strictEqual(participant.isGuest, false);
-                client.disconnect();
-                done();
+                resolve();
             });
         });
+
+        client.disconnect();
     });
 
-    test("join", (t, done) => {
-        const client1 = createClientSocket({ token: aliceToken });
-        const client2 = createClientSocket({ token: bobToken });
+    test("join", async () => {
+        const client1 = await connectClient({ token: aliceToken });
+        const client2 = await connectClient({ token: bobToken });
 
-        client1.on("connect", () => {
+        await new Promise((resolve) => {
             client1.emit("join-call", "join-test-room");
+            client1.once("host-status", () => resolve());
+        });
 
-            client2.on("connect", () => {
-                client1.on("user-joined", (joinedSocketId, participantList, namesMap) => {
-                    if (joinedSocketId === client2.id) {
-                        assert.ok(participantList.includes(client1.id));
-                        assert.ok(participantList.includes(client2.id));
-                        assert.strictEqual(namesMap[client2.id], "Bob Martin");
-                        client1.disconnect();
-                        client2.disconnect();
-                        done();
-                    }
-                });
-
-                client2.emit("join-call", "join-test-room");
+        const userJoinedPromise = new Promise((resolve) => {
+            client1.once("user-joined", (joinedSocketId, participantList, namesMap) => {
+                resolve({ joinedSocketId, participantList, namesMap });
             });
         });
+
+        client2.emit("join-call", "join-test-room");
+
+        const { joinedSocketId, participantList, namesMap } = await userJoinedPromise;
+        assert.strictEqual(joinedSocketId, client2.id);
+        assert.ok(participantList.includes(client1.id));
+        assert.ok(participantList.includes(client2.id));
+        assert.strictEqual(namesMap[client2.id], "Bob Martin");
+
+        client1.disconnect();
+        client2.disconnect();
     });
 
-    test("leave", (t, done) => {
-        const client1 = createClientSocket({ token: aliceToken });
-        const client2 = createClientSocket({ token: bobToken });
+    test("leave", async () => {
+        const client1 = await connectClient({ token: aliceToken });
+        const client2 = await connectClient({ token: bobToken });
 
-        client1.on("connect", () => {
+        await new Promise((resolve) => {
             client1.emit("join-call", "leave-test-room");
+            client1.once("host-status", () => resolve());
+        });
 
-            client2.on("connect", () => {
-                client2.emit("join-call", "leave-test-room");
+        await new Promise((resolve) => {
+            client2.emit("join-call", "leave-test-room");
+            client2.once("host-status", () => resolve());
+        });
 
-                setTimeout(() => {
-                    client2.on("user-left", (leftSocketId) => {
-                        assert.strictEqual(leftSocketId, client1.id);
-                        const room = getRoom("leave-test-room");
-                        assert.strictEqual(room.participants.has(client1.id), false);
-                        client1.disconnect();
-                        client2.disconnect();
-                        done();
-                    });
-
-                    client1.emit("leave-call");
-                }, 50);
+        const leavePromise = new Promise((resolve) => {
+            client2.once("user-left", (leftSocketId) => {
+                resolve(leftSocketId);
             });
         });
+
+        const client1Id = client1.id;
+        client1.emit("leave-call");
+        const leftId = await leavePromise;
+
+        assert.strictEqual(leftId, client1Id);
+        const room = getRoom("leave-test-room");
+        assert.strictEqual(room.participants.has(client1Id), false);
+
+        client1.disconnect();
+        client2.disconnect();
     });
 
-    test("disconnect", (t, done) => {
-        const client1 = createClientSocket({ token: aliceToken });
-        const client2 = createClientSocket({ token: bobToken });
+    test("disconnect", async () => {
+        const client1 = await connectClient({ token: aliceToken });
+        const client2 = await connectClient({ token: bobToken });
 
-        client1.on("connect", () => {
+        await new Promise((resolve) => {
             client1.emit("join-call", "disconnect-test-room");
+            client1.once("host-status", () => resolve());
+        });
 
-            client2.on("connect", () => {
-                client2.emit("join-call", "disconnect-test-room");
+        await new Promise((resolve) => {
+            client2.emit("join-call", "disconnect-test-room");
+            client2.once("host-status", () => resolve());
+        });
 
-                setTimeout(() => {
-                    client2.on("user-left", (leftSocketId) => {
-                        assert.strictEqual(leftSocketId, client1.id);
-                        client2.disconnect();
-                        done();
-                    });
-
-                    client1.disconnect();
-                }, 50);
+        const disconnectPromise = new Promise((resolve) => {
+            client2.once("user-left", (leftSocketId) => {
+                resolve(leftSocketId);
             });
         });
+
+        const client1Id = client1.id;
+        client1.disconnect();
+        const leftId = await disconnectPromise;
+        assert.strictEqual(leftId, client1Id);
+
+        client2.disconnect();
     });
 
-    test("duplicate join", (t, done) => {
-        const client = createClientSocket({ token: aliceToken });
+    test("duplicate join", async () => {
+        const client = await connectClient({ token: aliceToken });
 
-        client.on("connect", () => {
+        await new Promise((resolve) => {
             client.emit("join-call", "first-room");
-
-            setTimeout(() => {
-                assert.ok(getRoom("first-room"));
-
-                // Same socket joins second room
-                client.emit("join-call", "second-room");
-
-                setTimeout(() => {
-                    assert.strictEqual(getRoom("first-room"), null, "Empty old room must be cleaned up");
-                    assert.ok(getRoom("second-room"));
-                    client.disconnect();
-                    done();
-                }, 50);
-            }, 50);
+            client.once("host-status", () => resolve());
         });
+
+        assert.ok(getRoom("first-room"));
+
+        // Same client socket joins a second room
+        await new Promise((resolve) => {
+            client.emit("join-call", "second-room");
+            client.once("host-status", () => resolve());
+        });
+
+        assert.strictEqual(getRoom("first-room"), null, "Empty old room must be cleaned up");
+        assert.ok(getRoom("second-room"));
+
+        client.disconnect();
     });
 
-    test("host assignment", (t, done) => {
-        const hostClient = createClientSocket({ token: aliceToken });
-        const guestClient = createClientSocket({ token: bobToken });
+    test("host assignment", async () => {
+        const hostClient = await connectClient({ token: aliceToken });
+        const guestClient = await connectClient({ token: bobToken });
 
-        hostClient.on("connect", () => {
-            hostClient.emit("join-call", "host-assign-room");
-
-            hostClient.once("host-status", (hostStatus) => {
-                assert.strictEqual(hostStatus.isHost, true, "First participant must be Host");
-
-                guestClient.on("connect", () => {
-                    guestClient.emit("join-call", "host-assign-room");
-
-                    guestClient.once("host-status", (guestStatus) => {
-                        assert.strictEqual(guestStatus.isHost, false, "Second participant must not be Host");
-                        hostClient.disconnect();
-                        guestClient.disconnect();
-                        done();
-                    });
-                });
-            });
+        const hostStatusPromise = new Promise((resolve) => {
+            hostClient.once("host-status", (status) => resolve(status));
         });
+        hostClient.emit("join-call", "host-assign-room");
+        const hostStatus = await hostStatusPromise;
+        assert.strictEqual(hostStatus.isHost, true, "First participant must be Host");
+
+        const guestStatusPromise = new Promise((resolve) => {
+            guestClient.once("host-status", (status) => resolve(status));
+        });
+        guestClient.emit("join-call", "host-assign-room");
+        const guestStatus = await guestStatusPromise;
+        assert.strictEqual(guestStatus.isHost, false, "Second participant must not be Host");
+
+        hostClient.disconnect();
+        guestClient.disconnect();
     });
 
-    test("host disconnect", (t, done) => {
-        const host = createClientSocket({ token: aliceToken });
-        const peer = createClientSocket({ token: bobToken });
+    test("host disconnect", async () => {
+        const host = await connectClient({ token: aliceToken });
+        const peer = await connectClient({ token: bobToken });
 
-        host.on("connect", () => {
+        await new Promise((resolve) => {
             host.emit("join-call", "host-disconnect-room");
-
-            peer.on("connect", () => {
-                peer.emit("join-call", "host-disconnect-room");
-
-                setTimeout(() => {
-                    peer.on("host-status", (status) => {
-                        assert.strictEqual(status.isHost, true, "Peer must be promoted to host");
-                        peer.disconnect();
-                        done();
-                    });
-
-                    host.disconnect();
-                }, 50);
-            });
+            host.once("host-status", () => resolve());
         });
+
+        await new Promise((resolve) => {
+            peer.emit("join-call", "host-disconnect-room");
+            peer.once("host-status", () => resolve());
+        });
+
+        const promotionPromise = new Promise((resolve) => {
+            peer.once("host-status", (status) => resolve(status));
+        });
+
+        host.disconnect();
+        const promoStatus = await promotionPromise;
+        assert.strictEqual(promoStatus.isHost, true, "Peer must be promoted to host");
+
+        peer.disconnect();
     });
 
-    test("moderation", (t, done) => {
-        const host = createClientSocket({ token: aliceToken });
-        const participant = createClientSocket({ token: bobToken });
+    test("moderation", async () => {
+        const host = await connectClient({ token: aliceToken });
+        const participant = await connectClient({ token: bobToken });
 
-        host.on("connect", () => {
+        await new Promise((resolve) => {
             host.emit("join-call", "mod-room");
-
-            participant.on("connect", () => {
-                participant.emit("join-call", "mod-room");
-
-                setTimeout(() => {
-                    // Participant unauthorized mute attempt
-                    participant.once("error-message", (err) => {
-                        assert.strictEqual(err.code, "UNAUTHORIZED_HOST_ACTION");
-
-                        // Host authorized mute
-                        participant.once("force-mute-audio", () => {
-                            host.disconnect();
-                            participant.disconnect();
-                            done();
-                        });
-
-                        host.emit("host-mute-user", participant.id);
-                    });
-
-                    participant.emit("host-mute-user", host.id);
-                }, 50);
-            });
+            host.once("host-status", () => resolve());
         });
+
+        await new Promise((resolve) => {
+            participant.emit("join-call", "mod-room");
+            participant.once("host-status", () => resolve());
+        });
+
+        // 1. Participant unauthorized mute attempt
+        const unauthorizedPromise = new Promise((resolve) => {
+            participant.once("error-message", (err) => resolve(err));
+        });
+        participant.emit("host-mute-user", host.id);
+        const err = await unauthorizedPromise;
+        assert.strictEqual(err.code, "UNAUTHORIZED_HOST_ACTION");
+
+        // 2. Host authorized mute
+        const mutePromise = new Promise((resolve) => {
+            participant.once("force-mute-audio", () => resolve());
+        });
+        host.emit("host-mute-user", participant.id);
+        await mutePromise;
+
+        host.disconnect();
+        participant.disconnect();
     });
 
-    test("room cleanup", (t, done) => {
-        const client = createClientSocket({ token: aliceToken });
+    test("room cleanup", async () => {
+        const client = await connectClient({ token: aliceToken });
 
-        client.on("connect", () => {
+        await new Promise((resolve) => {
             client.emit("join-call", "cleanup-room");
-
-            setTimeout(() => {
-                assert.ok(getRoom("cleanup-room"));
-                assert.strictEqual(getActiveRoomCount(), 1);
-
-                client.disconnect();
-
-                setTimeout(() => {
-                    assert.strictEqual(getRoom("cleanup-room"), null, "Room must be purged after last participant exits");
-                    assert.strictEqual(getActiveRoomCount(), 0);
-                    done();
-                }, 100);
-            }, 50);
+            client.once("host-status", () => resolve());
         });
+
+        assert.ok(getRoom("cleanup-room"));
+        assert.strictEqual(getActiveRoomCount(), 1);
+
+        client.disconnect();
+        // Give short grace period for disconnect handler
+        await new Promise((r) => setTimeout(r, 50));
+
+        assert.strictEqual(getRoom("cleanup-room"), null, "Room must be purged after last participant exits");
+        assert.strictEqual(getActiveRoomCount(), 0);
     });
 });
