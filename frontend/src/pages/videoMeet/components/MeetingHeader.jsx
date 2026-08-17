@@ -3,9 +3,10 @@ import { Box, Typography, Chip, Tooltip, IconButton } from "@mui/material";
 import SecurityIcon from "@mui/icons-material/Security";
 import PeopleIcon from "@mui/icons-material/People";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { ConnectionQualityIndicator } from "./ConnectionQualityIndicator";
 import { logoImg } from "../../../assets/images";
 
-export function MeetingHeader({ roomCode, isHost, participantCount, networkQuality, onCopyUrl, copied }) {
+export function MeetingHeader({ roomCode, isHost, participantCount, networkQuality, networkMetrics, onCopyUrl, copied }) {
     return (
         <Box sx={{
             height: 60,
@@ -13,7 +14,7 @@ export function MeetingHeader({ roomCode, isHost, participantCount, networkQuali
             borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
             display: 'flex',
             alignItems: 'center',
-            justify: 'space-between',
+            justifyContent: 'space-between',
             px: 2.5,
             zIndex: 100
         }}>
@@ -40,10 +41,10 @@ export function MeetingHeader({ roomCode, isHost, participantCount, networkQuali
                     sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: 'rgba(59, 130, 246, 0.15)', color: '#60A5FA', border: '1px solid rgba(59, 130, 246, 0.3)', height: 24 }} 
                 />
 
-                <Chip
-                    label={`${networkQuality === 'Excellent' ? '🟢' : networkQuality === 'Fair' ? '🟡' : '🔴'} ${networkQuality}`}
-                    size="small"
-                    sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: 'rgba(255,255,255,0.08)', color: '#F8FAFC', border: '1px solid rgba(255,255,255,0.15)', height: 24 }}
+                <ConnectionQualityIndicator
+                    quality={networkQuality}
+                    rtt={networkMetrics?.rtt}
+                    packetLoss={networkMetrics?.packetLoss}
                 />
             </Box>
 

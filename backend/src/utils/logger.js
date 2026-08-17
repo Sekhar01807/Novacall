@@ -34,24 +34,27 @@ export const sanitize = (data) => {
 
 export const logger = {
     info: (message, meta = null) => {
+        const reqPrefix = meta?.requestId ? ` [Req: ${meta.requestId}]` : "";
         if (meta) {
-            console.log(`[${formatTime()}] [INFO]: ${message}`, JSON.stringify(sanitize(meta)));
+            console.log(`[${formatTime()}] [INFO]${reqPrefix}: ${message}`, JSON.stringify(sanitize(meta)));
         } else {
             console.log(`[${formatTime()}] [INFO]: ${message}`);
         }
     },
     warn: (message, meta = null) => {
+        const reqPrefix = meta?.requestId ? ` [Req: ${meta.requestId}]` : "";
         if (meta) {
-            console.warn(`[${formatTime()}] [WARN]: ${message}`, JSON.stringify(sanitize(meta)));
+            console.warn(`[${formatTime()}] [WARN]${reqPrefix}: ${message}`, JSON.stringify(sanitize(meta)));
         } else {
             console.warn(`[${formatTime()}] [WARN]: ${message}`);
         }
     },
     error: (message, error = null) => {
+        const reqPrefix = error?.requestId ? ` [Req: ${error.requestId}]` : "";
         if (error && error.stack) {
-            console.error(`[${formatTime()}] [ERROR]: ${message}\n${error.stack}`);
+            console.error(`[${formatTime()}] [ERROR]${reqPrefix}: ${message}\n${error.stack}`);
         } else if (error) {
-            console.error(`[${formatTime()}] [ERROR]: ${message}`, JSON.stringify(sanitize(error)));
+            console.error(`[${formatTime()}] [ERROR]${reqPrefix}: ${message}`, JSON.stringify(sanitize(error)));
         } else {
             console.error(`[${formatTime()}] [ERROR]: ${message}`);
         }

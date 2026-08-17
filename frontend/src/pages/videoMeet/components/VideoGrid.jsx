@@ -11,7 +11,10 @@ export function VideoGrid({
     peerNames,
     peerMediaStates,
     screenStream,
-    isScreenSharing
+    isScreenSharing,
+    localQuality = "Excellent",
+    localMetrics = null,
+    peerQualities = {}
 }) {
     if (isScreenSharing && screenStream) {
         return (
@@ -31,6 +34,9 @@ export function VideoGrid({
                         username={localUsername}
                         isAudioMuted={isLocalAudioMuted}
                         isVideoMuted={isLocalVideoMuted}
+                        quality={localQuality}
+                        rtt={localMetrics?.rtt}
+                        packetLoss={localMetrics?.packetLoss}
                     />
                     {remoteVideos.map((vid, idx) => (
                         <VideoTile
@@ -39,6 +45,9 @@ export function VideoGrid({
                             username={peerNames[vid.socketId] || `Participant ${idx + 1}`}
                             isAudioMuted={peerMediaStates[vid.socketId]?.audioMuted}
                             isVideoMuted={peerMediaStates[vid.socketId]?.videoMuted}
+                            quality={peerQualities[vid.socketId]?.quality || "Excellent"}
+                            rtt={peerQualities[vid.socketId]?.rtt}
+                            packetLoss={peerQualities[vid.socketId]?.packetLoss}
                         />
                     ))}
                 </div>
@@ -55,6 +64,9 @@ export function VideoGrid({
                 username={localUsername}
                 isAudioMuted={isLocalAudioMuted}
                 isVideoMuted={isLocalVideoMuted}
+                quality={localQuality}
+                rtt={localMetrics?.rtt}
+                packetLoss={localMetrics?.packetLoss}
             />
 
             {/* Remote Peer Video Tiles */}
@@ -66,6 +78,9 @@ export function VideoGrid({
                     isAudioMuted={peerMediaStates[vid.socketId]?.audioMuted}
                     isVideoMuted={peerMediaStates[vid.socketId]?.videoMuted}
                     isActiveSpeaker={idx === 0}
+                    quality={peerQualities[vid.socketId]?.quality || "Excellent"}
+                    rtt={peerQualities[vid.socketId]?.rtt}
+                    packetLoss={peerQualities[vid.socketId]?.packetLoss}
                 />
             ))}
         </div>

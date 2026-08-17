@@ -220,11 +220,59 @@ export const openapiSpecification = {
         },
         "/get_all_activity": {
             get: {
-                summary: "Fetch user meeting activity history",
+                summary: "Fetch user meeting activity history with pagination and search",
                 tags: ["Meeting History"],
                 security: [{ bearerAuth: [] }],
+                parameters: [
+                    {
+                        name: "page",
+                        in: "query",
+                        required: false,
+                        schema: { type: "integer", default: 1 },
+                        description: "Page number (1-indexed)"
+                    },
+                    {
+                        name: "limit",
+                        in: "query",
+                        required: false,
+                        schema: { type: "integer", default: 10, maximum: 100 },
+                        description: "Number of records per page"
+                    },
+                    {
+                        name: "search",
+                        in: "query",
+                        required: false,
+                        schema: { type: "string" },
+                        description: "Optional case-insensitive meeting code search query"
+                    }
+                ],
                 responses: {
-                    200: { description: "Meeting history list returned" },
+                    200: { 
+                        description: "Paginated meeting history returned",
+                        content: {
+                            "application/json": {
+                                schema: {
+                                    type: "object",
+                                    properties: {
+                                        success: { type: "boolean", example: true },
+                                        meetings: { type: "array", items: { type: "object" } },
+                                        pagination: {
+                                            type: "object",
+                                            properties: {
+                                                total: { type: "integer", example: 42 },
+                                                page: { type: "integer", example: 1 },
+                                                limit: { type: "integer", example: 10 },
+                                                totalPages: { type: "integer", example: 5 },
+                                                hasNextPage: { type: "boolean", example: true },
+                                                hasPrevPage: { type: "boolean", example: false }
+                                            }
+                                        },
+                                        requestId: { type: "string", example: "b9401-6558-48c5" }
+                                    }
+                                }
+                            }
+                        }
+                    },
                     401: { description: "Unauthorized" }
                 }
             }

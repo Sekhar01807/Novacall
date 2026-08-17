@@ -79,16 +79,43 @@ export const getRoom = (roomCode) => {
     return rooms.get(code) || null;
 };
 
+// Default maximum participant capacity per video meeting room
+export const DEFAULT_MAX_ROOM_CAPACITY = parseInt(process.env.MAX_ROOM_CAPACITY, 10) || 25;
+
 /**
- * Add a participant to a room
+ * Check if a room has reached its maximum participant limit
+ * @param {string} roomCode
+ * @param {number} [maxCapacity]
+ * @returns {boolean}
+ */
+export const isRoomFull = (roomCode, maxCapacity = DEFAULT_MAX_ROOM_CAPACITY) => {
+    const room = getRoom(roomCode);
+    if (!room) return false;
+    return room.participants.size >= maxCapacity;
+};
+
+/**
+ * Add a participant to a room (with room capacity validation)
  * @param {string} roomCode
  * @param {string} socketId
  * @param {Object} user - Authenticated user or guest metadata
- * @returns {{ room: Object, isHost: boolean, participant: Object }}
+ * @param {number} [maxCapacity] - Optional custom max room capacity
+ * @returns {{ room: Object, isHost: boolean, participant: Object } | { error: string, maxCapacity: number }}
  */
-export const addParticipant = (roomCode, socketId, user = {}) => {
+export const addParticipant = (roomCode, socketId, user = {}, maxCapacity = DEFAULT_MAX_ROOM_CAPACITY) => {
     const room = getOrCreateRoom(roomCode);
     if (!room) return null;
+
+    // Check if user is already a participant (e.g. reconnect or state sync)
+    const isExistingParticipant = room.participants.has(socketId);
+
+    // Enforce room capacity limit for new joiners
+    if (!isExistingParticipant && room.participants.size >= maxCapacity) {
+        return {
+            error: "ROOM_CAPACITY_EXCEEDED",
+            maxCapacity
+        };
+    }
 
     // First user in room becomes the host
     const isFirstParticipant = room.participants.size === 0 || !room.hostSocketId;

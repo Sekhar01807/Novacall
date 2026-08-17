@@ -9,6 +9,7 @@ import {
     sanitizeHTML
 } from "../roomState.js";
 import { logger } from "../../utils/logger.js";
+import { ERROR_CODES } from "../../utils/errorCodes.js";
 
 /**
  * Handle user joining a video call room
@@ -23,7 +24,7 @@ export const handleJoinCall = (io, socket, roomCodeOrUrl, clientSuppliedName) =>
     if (!roomCode) {
         logger.warn(`Rejected join-call from ${socket.id}: Invalid room code format.`);
         socket.emit("error-message", {
-            code: "INVALID_ROOM_CODE",
+            code: ERROR_CODES.INVALID_ROOM_CODE,
             message: "Invalid meeting room code."
         });
         return;
@@ -48,9 +49,21 @@ export const handleJoinCall = (io, socket, roomCodeOrUrl, clientSuppliedName) =>
     }
 
     const joinResult = addParticipant(roomCode, socket.id, userToRegister);
-    if (!joinResult) {
+
+    // Check if room capacity was exceeded
+    if (joinResult && joinResult.error === "ROOM_CAPACITY_EXCEEDED") {
+        logger.warn(`Rejected join-call from ${socket.id} to [${roomCode}]: Room capacity limit of ${joinResult.maxCapacity} reached.`);
         socket.emit("error-message", {
-            code: "ROOM_JOIN_FAILED",
+            code: ERROR_CODES.ROOM_CAPACITY_EXCEEDED,
+            message: `This meeting room has reached its maximum capacity of ${joinResult.maxCapacity} participants.`,
+            maxCapacity: joinResult.maxCapacity
+        });
+        return;
+    }
+
+    if (!joinResult || !joinResult.participant) {
+        socket.emit("error-message", {
+            code: ERROR_CODES.ROOM_JOIN_FAILED,
             message: "Unable to join the specified meeting room."
         });
         return;

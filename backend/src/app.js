@@ -8,6 +8,8 @@ import { initializeSocketIO } from "./controllers/socketManager.js";
 import UsersRoutes from "./routes/UsersRoutes.js";
 import { openapiSpecification, renderSwaggerHTML } from "./docs/swaggerSpec.js";
 import { logger } from "./utils/logger.js";
+import { requestIdMiddleware } from "./middleware/requestId.middleware.js";
+import { ERROR_CODES, formatErrorResponse } from "./utils/errorCodes.js";
 
 dotenv.config();
 
@@ -15,9 +17,19 @@ const app = express();
 const server = createServer(app);
 const io = initializeSocketIO(server);
 
+const API_VERSION = "1.0.0";
 app.set("port", process.env.PORT || 8000);
 
-// Configurable CORS for Production & Local Development
+// 1. Request ID & Correlation ID Middleware (applies to all incoming requests)
+app.use(requestIdMiddleware);
+
+// 2. API Version Header Middleware
+app.use((req, res, next) => {
+    res.setHeader("X-API-Version", API_VERSION);
+    next();
+});
+
+// 3. Configurable CORS for Production & Local Development
 const rawOrigins = process.env.FRONTEND_URL || "*";
 const allowedOrigins = rawOrigins.includes(",") ? rawOrigins.split(",").map(o => o.trim()) : rawOrigins;
 
@@ -25,7 +37,8 @@ app.use(cors({
     origin: allowedOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id", "X-Correlation-Id"],
+    exposedHeaders: ["X-Request-Id", "X-Correlation-Id", "X-API-Version"]
 }));
 
 app.use(express.json({ limit: "50kb" }));
@@ -52,11 +65,9 @@ const rateLimiter = (req, res, next) => {
     }
 
     if (record.count >= MAX_REQUESTS_PER_WINDOW) {
-        return res.status(429).json({
-            success: false,
-            message: "Too many requests from this IP. Please try again later.",
-            code: "RATE_LIMIT_EXCEEDED"
-        });
+        return res.status(429).json(
+            formatErrorResponse("Too many requests from this IP. Please try again later.", ERROR_CODES.RATE_LIMIT_EXCEEDED, req.id)
+        );
     }
 
     record.count += 1;
@@ -65,13 +76,15 @@ const rateLimiter = (req, res, next) => {
 
 app.use(rateLimiter);
 
-// Health Check Endpoint
+// Health Check Endpoint with Version and DB State
 app.get("/health", (req, res) => {
     const isDbConnected = mongoose.connection.readyState === 1;
     res.status(200).json({
         status: isDbConnected ? "ok" : "degraded",
+        version: API_VERSION,
         uptime: Math.floor(process.uptime()),
         database: isDbConnected ? "connected" : "disconnected",
+        requestId: req.id,
         timestamp: new Date().toISOString()
     });
 });
@@ -86,25 +99,27 @@ app.get("/api/openapi.json", (req, res) => {
     res.json(openapiSpecification);
 });
 
-// API Routes
+// Versioned API Routes (v1)
 app.use("/api/v1/users", UsersRoutes);
 
 app.get("/", (req, res) => {
     res.json({
         message: "NovaCall API Service Active",
+        version: API_VERSION,
         docs: "/api/docs",
-        health: "/health"
+        health: "/health",
+        requestId: req.id
     });
 });
 
 // Centralized Global Error Handler
 app.use((err, req, res, next) => {
-    logger.error("Unhandled Application Error", err);
-    res.status(err.status || 500).json({
-        success: false,
-        message: err.message || "Internal Server Error",
-        code: err.code || "INTERNAL_SERVER_ERROR"
-    });
+    logger.error("Unhandled Application Error", { error: err.message, stack: err.stack, requestId: req?.id });
+    const statusCode = err.status || err.statusCode || 500;
+    const errorCode = err.code || ERROR_CODES.INTERNAL_SERVER_ERROR;
+    res.status(statusCode).json(
+        formatErrorResponse(err.message || "Internal Server Error", errorCode, req?.id)
+    );
 });
 
 // Database Connection

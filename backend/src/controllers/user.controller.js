@@ -4,23 +4,21 @@ import bcrypt from "bcrypt";
 import { Meeting } from "../models/meetingModel.js";
 import { ScheduledMeeting } from "../models/scheduledMeetingModel.js";
 import { signJWT } from "../utils/jwt.js";
+import { ERROR_CODES, formatErrorResponse, formatSuccessResponse } from "../utils/errorCodes.js";
+import { logger } from "../utils/logger.js";
 
 const login = async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !username.trim()) {
-        return res.status(httpStatus.BAD_REQUEST).json({
-            success: false,
-            message: "Email or username is required",
-            code: "VALIDATION_ERROR"
-        });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Email or username is required", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
     if (!password || !password.trim()) {
-        return res.status(httpStatus.BAD_REQUEST).json({
-            success: false,
-            message: "Password is required",
-            code: "VALIDATION_ERROR"
-        });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Password is required", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
 
     try {
@@ -29,21 +27,17 @@ const login = async (req, res) => {
         });
 
         if (!user) {
-            return res.status(httpStatus.NOT_FOUND).json({
-                success: false,
-                message: "No account found with this username or email",
-                code: "USER_NOT_FOUND"
-            });
+            return res.status(httpStatus.NOT_FOUND).json(
+                formatErrorResponse("No account found with this username or email", ERROR_CODES.AUTH_USER_NOT_FOUND, req.id)
+            );
         }
 
         const isPasswordCorrect = await bcrypt.compare(password, user.password);
 
         if (!isPasswordCorrect) {
-            return res.status(httpStatus.UNAUTHORIZED).json({
-                success: false,
-                message: "Invalid credentials. Please check your password.",
-                code: "INVALID_CREDENTIALS"
-            });
+            return res.status(httpStatus.UNAUTHORIZED).json(
+                formatErrorResponse("Invalid credentials. Please check your password.", ERROR_CODES.AUTH_INVALID_CREDENTIALS, req.id)
+            );
         }
 
         const token = signJWT({
@@ -52,20 +46,20 @@ const login = async (req, res) => {
             email: user.email
         });
 
-        return res.status(httpStatus.OK).json({
-            success: true,
-            token: token,
-            email: user.email,
-            username: user.username,
-            name: user.name
-        });
+        return res.status(httpStatus.OK).json(
+            formatSuccessResponse({
+                token: token,
+                email: user.email,
+                username: user.username,
+                name: user.name
+            }, null, req.id)
+        );
 
     } catch (e) {
-        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-            success: false,
-            message: `Login error: ${e.message}`,
-            code: "SERVER_ERROR"
-        });
+        logger.error("Login controller error", { error: e.message, requestId: req.id });
+        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(`Login error: ${e.message}`, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
@@ -73,26 +67,40 @@ const register = async (req, res) => {
     const { name, email, username, password } = req.body;
 
     if (!name || !name.trim()) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Full name is required", code: "VALIDATION_ERROR" });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Full name is required", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
     if (!email || !email.trim()) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Email is required", code: "VALIDATION_ERROR" });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Email is required", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Please enter a valid email address", code: "VALIDATION_ERROR" });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Please enter a valid email address", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
     if (!username || !username.trim()) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Username is required", code: "VALIDATION_ERROR" });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Username is required", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
     if (!password || password.length < 8) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Password must be at least 8 characters long", code: "VALIDATION_ERROR" });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Password must be at least 8 characters long", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
     if (!/[A-Z]/.test(password)) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Password must contain at least one uppercase letter", code: "VALIDATION_ERROR" });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Password must contain at least one uppercase letter", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
     if (!/[0-9]/.test(password)) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Password must contain at least one number", code: "VALIDATION_ERROR" });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Password must contain at least one number", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
 
     try {
@@ -101,11 +109,9 @@ const register = async (req, res) => {
         });
 
         if (existingUser) {
-            return res.status(httpStatus.CONFLICT).json({
-                success: false,
-                message: "An account with this email or username already exists",
-                code: "USER_EXISTS"
-            });
+            return res.status(httpStatus.CONFLICT).json(
+                formatErrorResponse("An account with this email or username already exists", ERROR_CODES.USER_EXISTS, req.id)
+            );
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -125,51 +131,97 @@ const register = async (req, res) => {
             email: newUser.email
         });
 
-        res.status(httpStatus.CREATED).json({
-            success: true,
-            message: "User registered successfully",
-            token: token,
-            name: newUser.name,
-            username: newUser.username,
-            email: newUser.email
-        });
+        res.status(httpStatus.CREATED).json(
+            formatSuccessResponse({
+                token: token,
+                name: newUser.name,
+                username: newUser.username,
+                email: newUser.email
+            }, "User registered successfully", req.id)
+        );
 
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-            success: false,
-            message: `Registration failed: ${e.message}`,
-            code: "SERVER_ERROR"
-        });
+        logger.error("Registration controller error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(`Registration failed: ${e.message}`, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
+/**
+ * Get User Meeting History with Pagination & Search Support
+ * Query parameters:
+ *  - page: number (default 1)
+ *  - limit: number (default 10, max 100)
+ *  - search: string (optional meeting code substring filter)
+ */
 const getUserHistory = async (req, res) => {
     try {
         const user = req.user;
-        const meetings = await Meeting.find({ user_id: user.username }).sort({ date: -1 });
-        res.status(httpStatus.OK).json(meetings);
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const search = req.query.search ? String(req.query.search).trim() : "";
+
+        const query = { user_id: user.username };
+        if (search) {
+            query.meeting_code = { $regex: search, $options: "i" };
+        }
+
+        const total = await Meeting.countDocuments(query);
+        const meetings = await Meeting.find(query)
+            .sort({ date: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        const totalPages = Math.ceil(total / limit) || 1;
+
+        // Structured paginated response with backward compatible array field
+        return res.status(httpStatus.OK).json({
+            success: true,
+            meetings: meetings,
+            data: meetings, // alias for standard consumer
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1
+            },
+            requestId: req.id
+        });
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
+        logger.error("Get user history error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
 const addToHistory = async (req, res) => {
     const { meeting_code } = req.body;
-    if (!meeting_code) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Meeting code required", code: "VALIDATION_ERROR" });
+    if (!meeting_code || !meeting_code.trim()) {
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Meeting code required", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
 
     try {
         const user = req.user;
         const newMeeting = new Meeting({
             user_id: user.username,
-            meeting_code: meeting_code
+            meeting_code: meeting_code.trim()
         });
 
         await newMeeting.save();
-        res.status(httpStatus.CREATED).json({ success: true, message: "Added code to history" });
+        res.status(httpStatus.CREATED).json(
+            formatSuccessResponse(newMeeting, "Added code to history", req.id)
+        );
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
+        logger.error("Add to history error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
@@ -208,10 +260,14 @@ const getUserProfile = async (req, res) => {
             productUpdates: user.productUpdates ?? false,
             timeFormat: user.timeFormat || "12h",
             accentColor: user.accentColor || "#3B82F6",
-            planName: user.planName || "Professional"
+            planName: user.planName || "Professional",
+            requestId: req.id
         });
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
+        logger.error("Get profile error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
@@ -237,9 +293,17 @@ const updateUserProfile = async (req, res) => {
         await user.save();
         const safeUser = user.toObject();
         delete safeUser.password;
-        res.status(httpStatus.OK).json({ success: true, message: "Profile updated successfully", profile: safeUser });
+        res.status(httpStatus.OK).json({
+            success: true,
+            message: "Profile updated successfully",
+            profile: safeUser,
+            requestId: req.id
+        });
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
+        logger.error("Update profile error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
@@ -247,31 +311,44 @@ const changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Please provide current and new password", code: "VALIDATION_ERROR" });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Please provide current and new password", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
 
     if (newPassword.length < 8) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "New password must be at least 8 characters long", code: "VALIDATION_ERROR" });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("New password must be at least 8 characters long", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
 
     try {
         const user = await User.findById(req.user._id);
         const isMatch = await bcrypt.compare(currentPassword, user.password);
         if (!isMatch) {
-            return res.status(httpStatus.UNAUTHORIZED).json({ success: false, message: "Current password is incorrect", code: "INVALID_CREDENTIALS" });
+            return res.status(httpStatus.UNAUTHORIZED).json(
+                formatErrorResponse("Current password is incorrect", ERROR_CODES.AUTH_INVALID_CREDENTIALS, req.id)
+            );
         }
 
         user.password = await bcrypt.hash(newPassword, 10);
         await user.save();
 
-        res.status(httpStatus.OK).json({ success: true, message: "Password updated successfully" });
+        res.status(httpStatus.OK).json(
+            formatSuccessResponse(null, "Password updated successfully", req.id)
+        );
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
+        logger.error("Change password error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
 const signOutAllDevices = async (req, res) => {
-    res.status(httpStatus.OK).json({ success: true, message: "Signed out of all devices" });
+    res.status(httpStatus.OK).json(
+        formatSuccessResponse(null, "Signed out of all devices", req.id)
+    );
 };
 
 const deleteAccount = async (req, res) => {
@@ -281,9 +358,14 @@ const deleteAccount = async (req, res) => {
         await Meeting.deleteMany({ user_id: user.username });
         await ScheduledMeeting.deleteMany({ user_id: user.username });
 
-        res.status(httpStatus.OK).json({ success: true, message: "Account deleted successfully" });
+        res.status(httpStatus.OK).json(
+            formatSuccessResponse(null, "Account deleted successfully", req.id)
+        );
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
+        logger.error("Delete account error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
@@ -297,22 +379,29 @@ const resetCodes = new Map();
  */
 const forgotPassword = async (req, res) => {
     const { email } = req.body;
-    if (!email) return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Email is required", code: "VALIDATION_ERROR" });
+    if (!email) {
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Email is required", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
+    }
 
     try {
         const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
-            return res.status(httpStatus.NOT_FOUND).json({ success: false, message: "No account found with this email address", code: "USER_NOT_FOUND" });
+            return res.status(httpStatus.NOT_FOUND).json(
+                formatErrorResponse("No account found with this email address", ERROR_CODES.AUTH_USER_NOT_FOUND, req.id)
+            );
         }
 
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         resetCodes.set(email.toLowerCase(), { code, expires: Date.now() + 15 * 60 * 1000 });
-        logger.info(`Password reset requested for email: ${email.toLowerCase()}`);
+        logger.info(`Password reset requested for email: ${email.toLowerCase()}`, { requestId: req.id });
 
         const responsePayload = {
             success: true,
             message: "Password reset code generated. (Demo Notice: Verification code provided directly for testing. In production, configure an SMTP service.)",
-            code: "RESET_CODE_DISPATCHED"
+            code: "RESET_CODE_DISPATCHED",
+            requestId: req.id
         };
 
         // Always include resetCode in non-production or demo modes for direct testing
@@ -322,32 +411,48 @@ const forgotPassword = async (req, res) => {
 
         res.status(httpStatus.OK).json(responsePayload);
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
+        logger.error("Forgot password error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
 const resetPasswordWithCode = async (req, res) => {
     const { email, resetCode, newPassword } = req.body;
     if (!email || !resetCode || !newPassword) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Please provide email, reset code, and new password", code: "VALIDATION_ERROR" });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Please provide email, reset code, and new password", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
 
     try {
         const record = resetCodes.get(email.toLowerCase());
         if (!record || record.code !== resetCode || Date.now() > record.expires) {
-            return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Invalid or expired reset code", code: "INVALID_CODE" });
+            return res.status(httpStatus.BAD_REQUEST).json(
+                formatErrorResponse("Invalid or expired reset code", ERROR_CODES.INVALID_CODE, req.id)
+            );
         }
 
         const user = await User.findOne({ email: email.toLowerCase() });
-        if (!user) return res.status(httpStatus.NOT_FOUND).json({ success: false, message: "User not found", code: "USER_NOT_FOUND" });
+        if (!user) {
+            return res.status(httpStatus.NOT_FOUND).json(
+                formatErrorResponse("User not found", ERROR_CODES.AUTH_USER_NOT_FOUND, req.id)
+            );
+        }
 
         user.password = await bcrypt.hash(newPassword, 10);
         await user.save();
         resetCodes.delete(email.toLowerCase());
 
-        res.status(httpStatus.OK).json({ success: true, message: "Password reset successful. You can now log in." });
+        res.status(httpStatus.OK).json(
+            formatSuccessResponse(null, "Password reset successful. You can now log in.", req.id)
+        );
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
+        logger.error("Reset password error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
@@ -358,7 +463,9 @@ const createScheduledMeeting = async (req, res) => {
     const time = req.body.time || req.body.scheduled_time;
 
     if (!title || !date || !time || !meeting_code) {
-        return res.status(httpStatus.BAD_REQUEST).json({ success: false, message: "Missing required fields for scheduling", code: "VALIDATION_ERROR" });
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("Missing required fields for scheduling", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
     }
 
     try {
@@ -372,9 +479,17 @@ const createScheduledMeeting = async (req, res) => {
         });
 
         await newMeeting.save();
-        res.status(httpStatus.CREATED).json({ success: true, message: "Meeting scheduled successfully", meeting: newMeeting });
+        res.status(httpStatus.CREATED).json({
+            success: true,
+            message: "Meeting scheduled successfully",
+            meeting: newMeeting,
+            requestId: req.id
+        });
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
+        logger.error("Create scheduled meeting error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
@@ -382,9 +497,17 @@ const getUpcomingMeetings = async (req, res) => {
     try {
         const user = req.user;
         const meetings = await ScheduledMeeting.find({ user_id: user.username }).sort({ date: 1, time: 1 });
-        res.status(httpStatus.OK).json(meetings);
+        res.status(httpStatus.OK).json({
+            success: true,
+            meetings: meetings,
+            data: meetings,
+            requestId: req.id
+        });
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
+        logger.error("Get upcoming meetings error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 
@@ -395,17 +518,26 @@ const deleteScheduledMeeting = async (req, res) => {
         const meeting = await ScheduledMeeting.findById(id);
 
         if (!meeting) {
-            return res.status(httpStatus.NOT_FOUND).json({ success: false, message: "Scheduled meeting not found", code: "NOT_FOUND" });
+            return res.status(httpStatus.NOT_FOUND).json(
+                formatErrorResponse("Scheduled meeting not found", ERROR_CODES.NOT_FOUND, req.id)
+            );
         }
 
         if (meeting.user_id !== user.username) {
-            return res.status(httpStatus.FORBIDDEN).json({ success: false, message: "You are not authorized to delete this meeting", code: "FORBIDDEN" });
+            return res.status(httpStatus.FORBIDDEN).json(
+                formatErrorResponse("You are not authorized to delete this meeting", ERROR_CODES.FORBIDDEN, req.id)
+            );
         }
 
         await ScheduledMeeting.findByIdAndDelete(id);
-        res.status(httpStatus.OK).json({ success: true, message: "Scheduled meeting cancelled successfully" });
+        res.status(httpStatus.OK).json(
+            formatSuccessResponse(null, "Scheduled meeting cancelled successfully", req.id)
+        );
     } catch (e) {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: e.message, code: "SERVER_ERROR" });
+        logger.error("Delete scheduled meeting error", { error: e.message, requestId: req.id });
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
+            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
+        );
     }
 };
 

@@ -104,22 +104,26 @@ The project was built to explore real-time communication, WebRTC-based media str
 
 ## 🏗️ Application Architecture
 
+![NovaCall System Architecture](screenshots/novacall_architecture.png)
+
 ```mermaid
 graph TD
     Client["📱 React 19 Client (Vite + MUI)"]
-    Client -->|"REST API (JWT Bearer)"| Express["⚙️ Express.js Backend"]
+    Client -->|"REST API v1 (JWT + Request ID)"| Express["⚙️ Express.js Backend"]
     Client -->|"WebSocket Signaling"| Socket["⚡ Socket.IO Realtime Server"]
-    Express -->|"Mongoose Schemas"| Mongo[("🗄️ MongoDB Atlas")]
+    Express -->|"Indexed Schemas"| Mongo[("🗄️ MongoDB Atlas")]
     Socket -->|"SDP & ICE Signaling"| WebRTC["🎥 WebRTC Engine"]
     WebRTC -->|"Direct P2P Traversal"| STUN["🌐 STUN Servers (Google)"]
     WebRTC -.->|"Relay Fallback"| TURN["🔄 TURN Servers (OpenRelay)"]
 ```
 
+> 📖 **Real-Time Protocol Specification:** For a complete event dictionary, payload schemas, rate limit rules, and sequence diagrams, refer to [Socket.IO Events Documentation](backend/docs/SOCKET_EVENTS.md).
+
 ### Communication Flow
 ```mermaid
 flowchart LR
     User([👤 User]) --> App[📱 React Frontend]
-    App -->|"HTTP / REST API"| Backend["⚙️ Express + MongoDB"]
+    App -->|"HTTP / REST API v1"| Backend["⚙️ Express + MongoDB"]
     App -->|"WebSocket Events"| Signaling["⚡ Socket.IO Signaling"]
     Signaling -->|"Peer Exchange"| Peers["👥 Meeting Participants (WebRTC)"]
 ```

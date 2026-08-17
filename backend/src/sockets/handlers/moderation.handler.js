@@ -7,6 +7,7 @@ import {
     getParticipantSocketIds
 } from "../roomState.js";
 import { logger } from "../../utils/logger.js";
+import { ERROR_CODES } from "../../utils/errorCodes.js";
 
 /**
  * Mute a specific participant's microphone (Server-side Host Validated)
@@ -24,7 +25,7 @@ export const handleHostMute = (io, socket, targetSocketId) => {
     if (!isHost(roomCode, socket.id)) {
         logger.warn(`Security rejection: Non-host ${socket.id} attempted to mute participant ${targetSocketId} in room [${roomCode}]`);
         socket.emit("error-message", {
-            code: "UNAUTHORIZED_HOST_ACTION",
+            code: ERROR_CODES.UNAUTHORIZED_HOST_ACTION,
             message: "Host authorization required to mute participants."
         });
         return;
@@ -56,7 +57,7 @@ export const handleHostKick = (io, socket, targetSocketId) => {
     if (!isHost(roomCode, socket.id)) {
         logger.warn(`Security rejection: Non-host ${socket.id} attempted to kick participant ${targetSocketId} in room [${roomCode}]`);
         socket.emit("error-message", {
-            code: "UNAUTHORIZED_HOST_ACTION",
+            code: ERROR_CODES.UNAUTHORIZED_HOST_ACTION,
             message: "Host authorization required to remove participants."
         });
         return;
@@ -107,7 +108,7 @@ export const handleEndMeeting = (io, socket) => {
     if (!isHost(roomCode, socket.id)) {
         logger.warn(`Security rejection: Non-host ${socket.id} attempted to end meeting for room [${roomCode}]`);
         socket.emit("error-message", {
-            code: "UNAUTHORIZED_HOST_ACTION",
+            code: ERROR_CODES.UNAUTHORIZED_HOST_ACTION,
             message: "Host authorization required to end meeting for all."
         });
         return;

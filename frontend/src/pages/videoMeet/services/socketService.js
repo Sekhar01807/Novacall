@@ -3,9 +3,11 @@ import server from "../../../environment";
 
 class SocketService {
     socket = null;
+    lastPingTimestamp = null;
+    currentLatency = 20;
 
     /**
-     * Connect to the Socket.IO server with JWT token authentication and guest fallback
+     * Connect to the Socket.IO server with JWT token authentication, guest fallback, and robust reconnection
      * @param {string} [customToken]
      * @param {string} [guestDisplayName]
      * @returns {import('socket.io-client').Socket}
@@ -21,14 +23,36 @@ class SocketService {
                     guestName: guestName
                 },
                 reconnection: true,
-                reconnectionAttempts: 5,
+                reconnectionAttempts: 10,
                 reconnectionDelay: 1000,
                 reconnectionDelayMax: 5000,
-                timeout: 10000,
+                randomizationFactor: 0.5,
+                timeout: 15000,
                 transports: ["websocket", "polling"]
+            });
+
+            // Periodically measure socket heartbeat roundtrip latency
+            this.socket.on("ping", () => {
+                this.lastPingTimestamp = Date.now();
+            });
+
+            this.socket.on("pong", (latency) => {
+                if (typeof latency === "number") {
+                    this.currentLatency = latency;
+                } else if (this.lastPingTimestamp) {
+                    this.currentLatency = Date.now() - this.lastPingTimestamp;
+                }
             });
         }
         return this.socket;
+    }
+
+    /**
+     * Get current measured socket ping latency in ms
+     * @returns {number}
+     */
+    getSocketLatency() {
+        return this.currentLatency;
     }
 
     /**

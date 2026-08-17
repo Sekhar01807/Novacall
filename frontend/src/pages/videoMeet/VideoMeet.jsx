@@ -86,15 +86,19 @@ export default function VideoMeet() {
     const [showDrawer, setShowDrawer] = useState(false);
     const [drawerTab, setDrawerTab] = useState(0); // 0: Chat, 1: People
     const [networkQuality, setNetworkQuality] = useState("Excellent");
+    const [networkMetrics, setNetworkMetrics] = useState({ rtt: 25, packetLoss: 0 });
+    const [peerQualities, setPeerQualities] = useState({});
     const [copiedCode, setCopiedCode] = useState(false);
     const [joinToast, setJoinToast] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
     const [kickedModalOpen, setKickedModalOpen] = useState(false);
     const [meetingEndedModalOpen, setMeetingEndedModalOpen] = useState(false);
+    const [roomFullModalOpen, setRoomFullModalOpen] = useState(false);
 
     const socketRef = useRef(null);
     const socketIdRef = useRef(null);
+    const statsIntervalRef = useRef(null);
 
     const {
         audio,
@@ -118,10 +122,107 @@ export default function VideoMeet() {
     }, [getUserMedia]);
 
     /**
+     * WebRTC Connection Telemetry Polling Loop
+     * Polls active RTCPeerConnection stats every 3 seconds to measure RTT and Packet Loss
+     */
+    useEffect(() => {
+        if (meetingState !== MEETING_STATES.CONNECTED) {
+            if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+            return;
+        }
+
+        const pollStats = async () => {
+            const peerIds = Object.keys(connections);
+            if (peerIds.length === 0) {
+                // Fall back to socket heartbeat latency
+                const sockLatency = socketService.getSocketLatency() || 25;
+                setNetworkMetrics({ rtt: sockLatency, packetLoss: 0 });
+                setNetworkQuality(sockLatency < 100 ? "Excellent" : sockLatency < 200 ? "Good" : sockLatency < 350 ? "Fair" : "Poor");
+                return;
+            }
+
+            const updatedPeerQualities = {};
+            let totalRtt = 0;
+            let totalLoss = 0;
+            let count = 0;
+
+            for (const peerId of peerIds) {
+                const pc = connections[peerId];
+                if (!pc || pc.connectionState === 'closed') continue;
+
+                try {
+                    const stats = await pc.getStats();
+                    let peerRtt = 0;
+                    let peerPacketsLost = 0;
+                    let peerPacketsReceived = 0;
+
+                    stats.forEach(report => {
+                        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                            if (report.currentRoundTripTime !== undefined) {
+                                peerRtt = report.currentRoundTripTime * 1000; // convert to ms
+                            }
+                        }
+                        if (report.type === 'inbound-rtp') {
+                            if (report.packetsLost !== undefined) peerPacketsLost += report.packetsLost;
+                            if (report.packetsReceived !== undefined) peerPacketsReceived += report.packetsReceived;
+                        }
+                    });
+
+                    const totalPackets = peerPacketsLost + peerPacketsReceived;
+                    const lossRate = totalPackets > 0 ? (peerPacketsLost / totalPackets) * 100 : 0;
+
+                    let peerRating = "Excellent";
+                    if (peerRtt > 350 || lossRate > 8) peerRating = "Poor";
+                    else if (peerRtt > 200 || lossRate > 3) peerRating = "Fair";
+                    else if (peerRtt > 100 || lossRate > 1) peerRating = "Good";
+
+                    updatedPeerQualities[peerId] = {
+                        quality: peerRating,
+                        rtt: peerRtt,
+                        packetLoss: lossRate
+                    };
+
+                    totalRtt += peerRtt;
+                    totalLoss += lossRate;
+                    count++;
+                } catch (e) {
+                    // Ignore stats error during renegotiation
+                }
+            }
+
+            if (count > 0) {
+                const avgRtt = totalRtt / count;
+                const avgLoss = totalLoss / count;
+                setNetworkMetrics({ rtt: avgRtt, packetLoss: avgLoss });
+
+                let overallRating = "Excellent";
+                if (avgRtt > 350 || avgLoss > 8) overallRating = "Poor";
+                else if (avgRtt > 200 || avgLoss > 3) overallRating = "Fair";
+                else if (avgRtt > 100 || avgLoss > 1) overallRating = "Good";
+
+                setNetworkQuality(overallRating);
+                setPeerQualities(updatedPeerQualities);
+            }
+        };
+
+        statsIntervalRef.current = setInterval(pollStats, 3000);
+        pollStats();
+
+        return () => {
+            if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+        };
+    }, [meetingState]);
+
+    /**
      * Comprehensive WebRTC and Media Stream Lifecycle Cleanup
      * Disconnects all peer connections, removes listeners, stops media tracks
      */
     const cleanupWebRTC = useCallback(() => {
+        if (statsIntervalRef.current) {
+            clearInterval(statsIntervalRef.current);
+            statsIntervalRef.current = null;
+        }
+
         // 1. Close all active RTCPeerConnections
         for (const peerId in connections) {
             try {
@@ -181,14 +282,38 @@ export default function VideoMeet() {
                 setTimeout(() => connectToSocket(), 500);
             } else {
                 setMeetingState(MEETING_STATES.RECONNECTING);
-                setNetworkQuality("Poor");
+                setNetworkQuality("Reconnecting");
             }
         });
 
-        socket.on("reconnect", () => {
+        socket.on("disconnect", (reason) => {
+            console.warn("Socket disconnected:", reason);
+            if (reason !== "io client disconnect") {
+                setMeetingState(MEETING_STATES.RECONNECTING);
+                setNetworkQuality("Reconnecting");
+            }
+        });
+
+        // Automatic Reconnect & Rejoin Flow
+        socket.on("reconnect", (attemptNumber) => {
+            console.log(`Socket reconnected successfully after ${attemptNumber} attempts. Re-joining room...`);
             setMeetingState(MEETING_STATES.CONNECTED);
-            setNetworkQuality("Excellent");
+            setNetworkQuality("Good");
             socketService.joinCall(roomCode, username);
+
+            // Re-negotiate ICE connections for any existing peers
+            for (const peerId in connections) {
+                try {
+                    const pc = connections[peerId];
+                    if (pc && pc.signalingState !== "closed") {
+                        pc.createOffer({ iceRestart: true }).then((description) => {
+                            pc.setLocalDescription(description).then(() => {
+                                socketService.sendSignal(peerId, JSON.stringify({ sdp: pc.localDescription }));
+                            });
+                        }).catch(e => console.warn("Renegotiation error on reconnect:", e));
+                    }
+                } catch (e) {}
+            }
         });
 
         socket.on("signal", (fromId, message) => {
@@ -292,7 +417,13 @@ export default function VideoMeet() {
         });
 
         socket.on("error-message", (err) => {
-            setErrorMessage(err.message || "An unexpected error occurred.");
+            if (err.code === "ROOM_CAPACITY_EXCEEDED") {
+                cleanupWebRTC();
+                setMeetingState(MEETING_STATES.ERROR);
+                setRoomFullModalOpen(true);
+            } else {
+                setErrorMessage(err.message || "An unexpected error occurred.");
+            }
         });
 
         socket.on("user-joined", (id, clients, roomNamesMap) => {
@@ -568,6 +699,7 @@ export default function VideoMeet() {
                         isHost={isHost}
                         participantCount={videos.length + 1}
                         networkQuality={meetingState === MEETING_STATES.RECONNECTING ? "Reconnecting" : networkQuality}
+                        networkMetrics={networkMetrics}
                         onCopyUrl={handleCopyUrl}
                         copied={copiedCode}
                     />
@@ -584,6 +716,9 @@ export default function VideoMeet() {
                                 peerMediaStates={peerMediaStates}
                                 screenStream={window.localStream}
                                 isScreenSharing={screen}
+                                localQuality={meetingState === MEETING_STATES.RECONNECTING ? "Reconnecting" : networkQuality}
+                                localMetrics={networkMetrics}
+                                peerQualities={peerQualities}
                             />
                         </div>
 
@@ -667,6 +802,21 @@ export default function VideoMeet() {
                     </Dialog>
                 </div>
             )}
+
+            {/* Room Full / Capacity Exceeded Modal Dialog */}
+            <Dialog open={roomFullModalOpen} onClose={() => {}}>
+                <DialogTitle sx={{ fontWeight: 800, color: '#F59E0B' }}>Meeting Room Full</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" sx={{ color: '#475569' }}>
+                        This meeting room has reached its maximum participant limit. Please wait for an attendee to leave or contact the meeting organizer.
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="contained" onClick={() => window.location.href = "/home"} sx={{ fontWeight: 700 }}>
+                        Return to Dashboard
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             {/* Kicked Modal Dialog */}
             <Dialog open={kickedModalOpen} onClose={() => {}}>

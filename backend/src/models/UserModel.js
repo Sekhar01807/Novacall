@@ -143,7 +143,12 @@ const userSchema = new Schema({
         type: String,
         default: "Professional"
     }
-});
+}, { timestamps: true });
+
+// Explicit database indexes for performance
+userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ username: 1 }, { unique: true });
+userSchema.index({ createdAt: -1 });
 
 const User = model("User", userSchema);
 

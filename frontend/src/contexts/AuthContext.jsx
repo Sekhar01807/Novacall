@@ -204,9 +204,15 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const getHistoryOfUser = async () => {
+    const getHistoryOfUser = async (page = 1, limit = 10, search = "") => {
         try {
-            let request = await client.get("/get_all_activity");
+            let request = await client.get("/get_all_activity", {
+                params: {
+                    page: page,
+                    limit: limit,
+                    search: search
+                }
+            });
             return request.data;
         } catch (err) {
             throw err;

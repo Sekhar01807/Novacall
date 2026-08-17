@@ -169,3 +169,39 @@ describe("6. Password Reset Limitation & Explicit Response Validation", () => {
     });
 });
 
+describe("7. Standardized Error Codes & Response Formatters Tests", () => {
+    test("should format error response with typed error code, message, and requestId", async () => {
+        const { ERROR_CODES, formatErrorResponse, formatSuccessResponse } = await import("../src/utils/errorCodes.js");
+        
+        assert.ok(ERROR_CODES.AUTH_TOKEN_REQUIRED);
+        assert.ok(ERROR_CODES.ROOM_CAPACITY_EXCEEDED);
+        assert.ok(ERROR_CODES.RATE_LIMIT_EXCEEDED);
+        assert.ok(ERROR_CODES.UNAUTHORIZED_HOST_ACTION);
+
+        const errorPayload = formatErrorResponse(
+            ERROR_CODES.RATE_LIMIT_EXCEEDED,
+            "Too many requests",
+            { retryAfter: 60 },
+            "req-uuid-12345"
+        );
+
+        assert.strictEqual(errorPayload.success, false);
+        assert.strictEqual(errorPayload.code, "RATE_LIMIT_EXCEEDED");
+        assert.strictEqual(errorPayload.message, "Too many requests");
+        assert.strictEqual(errorPayload.retryAfter, 60);
+        assert.strictEqual(errorPayload.requestId, "req-uuid-12345");
+
+        const successPayload = formatSuccessResponse(
+            { user: "alice" },
+            "Operation completed",
+            "req-uuid-99999"
+        );
+
+        assert.strictEqual(successPayload.success, true);
+        assert.strictEqual(successPayload.user, "alice");
+        assert.strictEqual(successPayload.message, "Operation completed");
+        assert.strictEqual(successPayload.requestId, "req-uuid-99999");
+    });
+});
+
+

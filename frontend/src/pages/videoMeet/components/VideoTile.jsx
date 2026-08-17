@@ -2,9 +2,20 @@ import React, { useEffect, useRef } from "react";
 import MicIcon from "@mui/icons-material/Mic";
 import MicOffIcon from "@mui/icons-material/MicOff";
 import Avatar from "@mui/material/Avatar";
+import { ConnectionQualityIndicator } from "./ConnectionQualityIndicator";
 import styles from "../../../styles/videoComponent.module.css";
 
-export function VideoTile({ stream, isLocal = false, username = "Participant", isAudioMuted = false, isVideoMuted = false, isActiveSpeaker = false }) {
+export function VideoTile({ 
+    stream, 
+    isLocal = false, 
+    username = "Participant", 
+    isAudioMuted = false, 
+    isVideoMuted = false, 
+    isActiveSpeaker = false,
+    quality = "Excellent",
+    rtt = null,
+    packetLoss = null
+}) {
     const videoRef = useRef(null);
 
     useEffect(() => {
@@ -43,7 +54,8 @@ export function VideoTile({ stream, isLocal = false, username = "Participant", i
                 <span className={`${styles.micIcon} ${isAudioMuted ? styles.micMuted : ''}`}>
                     {isAudioMuted ? <MicOffIcon fontSize="inherit" sx={{ color: '#F43F5E' }} /> : <MicIcon fontSize="inherit" />}
                 </span>
-                {username} {isLocal && "(You)"}
+                <span>{username} {isLocal && "(You)"}</span>
+                <ConnectionQualityIndicator quality={quality} rtt={rtt} packetLoss={packetLoss} compact={true} />
             </div>
         </div>
     );
