@@ -241,4 +241,35 @@ describe("WebRTC", () => {
         assert.strictEqual(status.roomCode, "webrtc-reconnect-room");
         reconnectedClient.disconnect();
     });
+
+    test("cross-room signaling rejection", async () => {
+        const client1 = await connectClient({ token: aliceToken });
+        const client2 = await connectClient({ token: bobToken });
+
+        // Client 1 joins room A
+        await new Promise((resolve) => {
+            client1.emit("join-call", "room-a");
+            client1.once("host-status", () => resolve());
+        });
+
+        // Client 2 joins room B
+        await new Promise((resolve) => {
+            client2.emit("join-call", "room-b");
+            client2.once("host-status", () => resolve());
+        });
+
+        let signalReceived = false;
+        client2.on("signal", () => {
+            signalReceived = true;
+        });
+
+        // Client 1 attempts to signal Client 2 across rooms
+        client1.emit("signal", client2.id, JSON.stringify({ sdp: { type: "offer" } }));
+
+        await new Promise((r) => setTimeout(r, 100));
+        assert.strictEqual(signalReceived, false, "Cross-room signaling must be rejected server-side");
+
+        client1.disconnect();
+        client2.disconnect();
+    });
 });

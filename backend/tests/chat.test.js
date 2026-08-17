@@ -157,8 +157,9 @@ describe("Chat", () => {
         client1.emit("chat-message", hugeMessage);
         const data = await chatPromise;
 
-        // Message should be truncated to max limit of 2000 chars
-        assert.ok(data.length <= 2000);
+        // Message should be truncated to max limit of 1000 chars
+        assert.ok(data.length <= 1000);
+        assert.strictEqual(data.length, 1000);
 
         client1.disconnect();
         client2.disconnect();

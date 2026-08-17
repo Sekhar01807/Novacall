@@ -4,7 +4,8 @@ const userSchema = new Schema({
     name: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
+        maxlength: [100, "Name cannot exceed 100 characters"]
     },
     email: {
         type: String,
@@ -12,6 +13,7 @@ const userSchema = new Schema({
         unique: true,
         trim: true,
         lowercase: true,
+        maxlength: [150, "Email cannot exceed 150 characters"],
         match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Please provide a valid email address"]
     },
     username: {
@@ -21,19 +23,34 @@ const userSchema = new Schema({
         trim: true,
         lowercase: true,
         minlength: [3, "Username must be at least 3 characters"],
+        maxlength: [50, "Username cannot exceed 50 characters"],
         match: [/^[a-zA-Z0-9_.-]+$/, "Username can only contain alphanumeric characters, underscores, dots, and hyphens"]
     },
     password: {
         type: String,
         required: true
     },
+    resetPasswordToken: {
+        type: String,
+        default: null
+    },
+    resetPasswordExpires: {
+        type: Date,
+        default: null
+    },
+    resetPasswordAttempts: {
+        type: Number,
+        default: 0
+    },
     jobTitle: {
         type: String,
-        default: ""
+        default: "",
+        maxlength: [100, "Job title cannot exceed 100 characters"]
     },
     company: {
         type: String,
-        default: ""
+        default: "",
+        maxlength: [100, "Company cannot exceed 100 characters"]
     },
     profilePic: {
         type: String,
@@ -41,6 +58,7 @@ const userSchema = new Schema({
     },
     themeMode: {
         type: String,
+        enum: ["light", "dark", "system"],
         default: "light"
     },
     defaultMicOff: {
@@ -65,27 +83,33 @@ const userSchema = new Schema({
     },
     phone: {
         type: String,
-        default: ""
+        default: "",
+        maxlength: [30, "Phone number cannot exceed 30 characters"]
     },
     country: {
         type: String,
-        default: "India"
+        default: "India",
+        maxlength: [100, "Country cannot exceed 100 characters"]
     },
     timeZone: {
         type: String,
-        default: "(GMT+05:30) India Standard Time"
+        default: "(GMT+05:30) India Standard Time",
+        maxlength: [100, "Time zone cannot exceed 100 characters"]
     },
     statusMsg: {
         type: String,
-        default: "Focusing on project work"
+        default: "Focusing on project work",
+        maxlength: [200, "Status message cannot exceed 200 characters"]
     },
     statusState: {
         type: String,
+        enum: ["Available", "Busy", "In a Meeting", "Away", "Do Not Disturb"],
         default: "Available"
     },
     pronouns: {
         type: String,
-        default: "he/him"
+        default: "he/him",
+        maxlength: [30, "Pronouns cannot exceed 30 characters"]
     },
     showJobTitle: {
         type: Boolean,
@@ -133,15 +157,18 @@ const userSchema = new Schema({
     },
     timeFormat: {
         type: String,
+        enum: ["12h", "24h"],
         default: "12h"
     },
     accentColor: {
         type: String,
-        default: "#3B82F6"
+        default: "#3B82F6",
+        maxlength: [30, "Accent color cannot exceed 30 characters"]
     },
     planName: {
         type: String,
-        default: "Professional"
+        default: "Professional",
+        maxlength: [50, "Plan name cannot exceed 50 characters"]
     }
 }, { timestamps: true });
 

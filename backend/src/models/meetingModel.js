@@ -4,11 +4,15 @@ const meetingSchema = new Schema({
     user_id: {
         type: String,
         required: true,
+        trim: true,
+        maxlength: [50, "User ID cannot exceed 50 characters"],
         index: true
     },
     meeting_code: {
         type: String,
         required: true,
+        trim: true,
+        maxlength: [64, "Meeting code cannot exceed 64 characters"],
         index: true
     },
     date: {

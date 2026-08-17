@@ -81,8 +81,8 @@ export const openapiSpecification = {
         },
         "/forgot_password": {
             post: {
-                summary: "Initiate password reset flow (In-memory code generation in demo/dev mode)",
-                description: "Generates a 6-digit verification code. In development/demo environments, the code is returned in the response for direct testing. In production, configure SMTP for email dispatch.",
+                summary: "Initiate secure password reset flow",
+                description: "Generates a cryptographically secure 6-digit verification code stored as a SHA-256 hash with a 15-minute expiration window and max 5 verification attempts. In production environments, the code is dispatched via email and never returned in the response payload.",
                 tags: ["Authentication"],
                 requestBody: {
                     required: true,
@@ -99,14 +99,16 @@ export const openapiSpecification = {
                     }
                 },
                 responses: {
-                    200: { description: "Reset code generated and dispatched" },
+                    200: { description: "Reset code hashed and dispatched successfully" },
+                    400: { description: "Validation error - email required" },
                     404: { description: "Account not found" }
                 }
             }
         },
         "/reset_password": {
             post: {
-                summary: "Reset account password with verification code",
+                summary: "Reset account password with verification code (Single-use, Rate-limited)",
+                description: "Verifies user-supplied code against stored SHA-256 hash. Enforces max 5 failed attempts rate limiting and single-use token invalidation upon success.",
                 tags: ["Authentication"],
                 requestBody: {
                     required: true,
@@ -126,7 +128,8 @@ export const openapiSpecification = {
                 },
                 responses: {
                     200: { description: "Password reset successful" },
-                    400: { description: "Invalid or expired code" }
+                    400: { description: "Invalid or expired verification code" },
+                    429: { description: "Too many failed attempts - Code invalidated" }
                 }
             }
         },

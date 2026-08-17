@@ -1,11 +1,11 @@
 import {
-    findRoomBySocketId,
-    isHost,
+    requireRoomHost,
     isParticipant,
     removeParticipant,
     deleteRoom,
     getParticipantSocketIds
 } from "../roomState.js";
+import { validateModerationAction } from "../middleware/socketValidator.js";
 import { logger } from "../../utils/logger.js";
 import { ERROR_CODES } from "../../utils/errorCodes.js";
 
@@ -16,14 +16,12 @@ import { ERROR_CODES } from "../../utils/errorCodes.js";
  * @param {string} targetSocketId
  */
 export const handleHostMute = (io, socket, targetSocketId) => {
-    if (!targetSocketId || typeof targetSocketId !== 'string') return;
+    if (!validateModerationAction(socket, targetSocketId)) return;
 
-    const { roomCode, room } = findRoomBySocketId(socket.id);
-    if (!roomCode || !room) return;
-
-    // Check host authority
-    if (!isHost(roomCode, socket.id)) {
-        logger.warn(`Security rejection: Non-host ${socket.id} attempted to mute participant ${targetSocketId} in room [${roomCode}]`);
+    // Centralized server-side host check
+    const hostAuth = requireRoomHost(socket);
+    if (!hostAuth.ok) {
+        logger.warn(`Security rejection: Non-host ${socket.id} attempted to mute participant ${targetSocketId}`);
         socket.emit("error-message", {
             code: ERROR_CODES.UNAUTHORIZED_HOST_ACTION,
             message: "Host authorization required to mute participants."
@@ -31,7 +29,9 @@ export const handleHostMute = (io, socket, targetSocketId) => {
         return;
     }
 
-    // Verify target belongs to the same room
+    const { roomCode } = hostAuth;
+
+    // Verify target belongs to the exact same room
     if (!isParticipant(roomCode, targetSocketId)) {
         logger.warn(`Target ${targetSocketId} is not in room [${roomCode}]`);
         return;
@@ -48,14 +48,12 @@ export const handleHostMute = (io, socket, targetSocketId) => {
  * @param {string} targetSocketId
  */
 export const handleHostKick = (io, socket, targetSocketId) => {
-    if (!targetSocketId || typeof targetSocketId !== 'string') return;
+    if (!validateModerationAction(socket, targetSocketId)) return;
 
-    const { roomCode, room } = findRoomBySocketId(socket.id);
-    if (!roomCode || !room) return;
-
-    // Check host authority
-    if (!isHost(roomCode, socket.id)) {
-        logger.warn(`Security rejection: Non-host ${socket.id} attempted to kick participant ${targetSocketId} in room [${roomCode}]`);
+    // Centralized server-side host check
+    const hostAuth = requireRoomHost(socket);
+    if (!hostAuth.ok) {
+        logger.warn(`Security rejection: Non-host ${socket.id} attempted to kick participant ${targetSocketId}`);
         socket.emit("error-message", {
             code: ERROR_CODES.UNAUTHORIZED_HOST_ACTION,
             message: "Host authorization required to remove participants."
@@ -63,12 +61,14 @@ export const handleHostKick = (io, socket, targetSocketId) => {
         return;
     }
 
+    const { roomCode } = hostAuth;
+
     // Cannot kick self via kick handler
     if (targetSocketId === socket.id) {
         return;
     }
 
-    // Verify target belongs to the same room
+    // Verify target belongs to the exact same room
     if (!isParticipant(roomCode, targetSocketId)) {
         logger.warn(`Target ${targetSocketId} is not in room [${roomCode}]`);
         return;
@@ -101,12 +101,12 @@ export const handleHostKick = (io, socket, targetSocketId) => {
  * @param {import('socket.io').Socket} socket
  */
 export const handleEndMeeting = (io, socket) => {
-    const { roomCode, room } = findRoomBySocketId(socket.id);
-    if (!roomCode || !room) return;
+    if (!validateModerationAction(socket)) return;
 
-    // Check host authority
-    if (!isHost(roomCode, socket.id)) {
-        logger.warn(`Security rejection: Non-host ${socket.id} attempted to end meeting for room [${roomCode}]`);
+    // Centralized server-side host check
+    const hostAuth = requireRoomHost(socket);
+    if (!hostAuth.ok) {
+        logger.warn(`Security rejection: Non-host ${socket.id} attempted to end meeting`);
         socket.emit("error-message", {
             code: ERROR_CODES.UNAUTHORIZED_HOST_ACTION,
             message: "Host authorization required to end meeting for all."
@@ -114,6 +114,7 @@ export const handleEndMeeting = (io, socket) => {
         return;
     }
 
+    const { roomCode } = hostAuth;
     const participantSocketIds = getParticipantSocketIds(roomCode);
 
     // Broadcast meeting termination to all participants

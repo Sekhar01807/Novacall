@@ -8,6 +8,7 @@ import {
     getChatMessages,
     sanitizeHTML
 } from "../roomState.js";
+import { validateJoinCall } from "../middleware/socketValidator.js";
 import { logger } from "../../utils/logger.js";
 import { ERROR_CODES } from "../../utils/errorCodes.js";
 
@@ -19,6 +20,10 @@ import { ERROR_CODES } from "../../utils/errorCodes.js";
  * @param {string} [clientSuppliedName]
  */
 export const handleJoinCall = (io, socket, roomCodeOrUrl, clientSuppliedName) => {
+    if (!validateJoinCall(socket, roomCodeOrUrl, clientSuppliedName)) {
+        return;
+    }
+
     const roomCode = normalizeRoomCode(roomCodeOrUrl);
 
     if (!roomCode) {

@@ -10,8 +10,19 @@ import { openapiSpecification, renderSwaggerHTML } from "./docs/swaggerSpec.js";
 import { logger } from "./utils/logger.js";
 import { requestIdMiddleware } from "./middleware/requestId.middleware.js";
 import { ERROR_CODES, formatErrorResponse } from "./utils/errorCodes.js";
+import { validateJwtSecretAtStartup } from "./utils/jwt.js";
 
 dotenv.config();
+
+// 0. Validate Critical Environment Configurations on Startup
+try {
+    validateJwtSecretAtStartup();
+} catch (err) {
+    logger.error("Startup Configuration Error:", err);
+    if (process.env.NODE_ENV === "production") {
+        process.exit(1);
+    }
+}
 
 const app = express();
 const server = createServer(app);
@@ -23,13 +34,25 @@ app.set("port", process.env.PORT || 8000);
 // 1. Request ID & Correlation ID Middleware (applies to all incoming requests)
 app.use(requestIdMiddleware);
 
-// 2. API Version Header Middleware
+// 2. HTTP Security Headers Middleware (Production-Grade Protection)
+app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("X-XSS-Protection", "0");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    if (req.secure || req.headers["x-forwarded-proto"] === "https") {
+        res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
+    next();
+});
+
+// 3. API Version Header Middleware
 app.use((req, res, next) => {
     res.setHeader("X-API-Version", API_VERSION);
     next();
 });
 
-// 3. Configurable CORS for Production & Local Development
+// 4. Configurable CORS for Production & Local Development
 const rawOrigins = process.env.FRONTEND_URL || "*";
 const allowedOrigins = rawOrigins.includes(",") ? rawOrigins.split(",").map(o => o.trim()) : rawOrigins;
 
@@ -76,10 +99,11 @@ const rateLimiter = (req, res, next) => {
 
 app.use(rateLimiter);
 
-// Health Check Endpoint with Version and DB State
+// Health Check Endpoint with Version and DB State (Returns 503 if DB disconnected)
 app.get("/health", (req, res) => {
     const isDbConnected = mongoose.connection.readyState === 1;
-    res.status(200).json({
+    const statusCode = isDbConnected ? 200 : 503;
+    res.status(statusCode).json({
         status: isDbConnected ? "ok" : "degraded",
         version: API_VERSION,
         uptime: Math.floor(process.uptime()),
@@ -112,13 +136,20 @@ app.get("/", (req, res) => {
     });
 });
 
-// Centralized Global Error Handler
+// Centralized Global Error Handler with Production Sanitization
 app.use((err, req, res, next) => {
     logger.error("Unhandled Application Error", { error: err.message, stack: err.stack, requestId: req?.id });
     const statusCode = err.status || err.statusCode || 500;
     const errorCode = err.code || ERROR_CODES.INTERNAL_SERVER_ERROR;
+
+    // In production, never expose internal database/system error messages on 500 errors
+    const isProduction = process.env.NODE_ENV === "production";
+    const clientMessage = (isProduction && statusCode === 500)
+        ? "Internal Server Error"
+        : (err.message || "Internal Server Error");
+
     res.status(statusCode).json(
-        formatErrorResponse(err.message || "Internal Server Error", errorCode, req?.id)
+        formatErrorResponse(clientMessage, errorCode, req?.id)
     );
 });
 

@@ -304,4 +304,45 @@ describe("Socket.IO", () => {
         assert.strictEqual(getRoom("cleanup-room"), null, "Room must be purged after last participant exits");
         assert.strictEqual(getActiveRoomCount(), 0);
     });
+
+    test("mesh capacity limit enforcement", async () => {
+        const { addParticipant, getRoom, DEFAULT_MAX_ROOM_CAPACITY } = await import("../src/sockets/roomState.js");
+        assert.strictEqual(DEFAULT_MAX_ROOM_CAPACITY, 6, "Default P2P mesh capacity must be set to 6");
+
+        const roomCode = "mesh-cap-test";
+        // Add 6 participants
+        for (let i = 1; i <= 6; i++) {
+            const res = addParticipant(roomCode, `socket_${i}`, { name: `User ${i}` });
+            assert.ok(res.participant);
+        }
+
+        const room = getRoom(roomCode);
+        assert.strictEqual(room.participants.size, 6);
+
+        // 7th participant must be rejected
+        const overflowRes = addParticipant(roomCode, "socket_7", { name: "User 7" });
+        assert.ok(overflowRes.error);
+        assert.strictEqual(overflowRes.error, "ROOM_CAPACITY_EXCEEDED");
+        assert.strictEqual(overflowRes.maxCapacity, 6);
+    });
+
+    test("centralized requireRoomHost helper", async () => {
+        const { addParticipant, requireRoomHost } = await import("../src/sockets/roomState.js");
+        const roomCode = "host-guard-test";
+
+        addParticipant(roomCode, "socket_host", { name: "Host User" });
+        addParticipant(roomCode, "socket_guest", { name: "Guest User" });
+
+        const hostCheck = requireRoomHost("socket_host");
+        assert.strictEqual(hostCheck.ok, true);
+        assert.strictEqual(hostCheck.roomCode, "host-guard-test");
+
+        const guestCheck = requireRoomHost("socket_guest");
+        assert.strictEqual(guestCheck.ok, false);
+        assert.strictEqual(guestCheck.error, "UNAUTHORIZED_HOST_ACTION");
+
+        const nonParticipantCheck = requireRoomHost("socket_outsider");
+        assert.strictEqual(nonParticipantCheck.ok, false);
+        assert.strictEqual(nonParticipantCheck.error, "NOT_IN_ROOM");
+    });
 });

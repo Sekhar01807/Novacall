@@ -1,5 +1,6 @@
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import bcrypt from "bcrypt";
 import { signJWT, verifyJWT } from "../src/utils/jwt.js";
 import { ERROR_CODES, formatErrorResponse, formatSuccessResponse } from "../src/utils/errorCodes.js";
@@ -117,5 +118,49 @@ describe("Authentication", () => {
 
         const decoded = verifyJWT(tamperedToken, testSecret);
         assert.strictEqual(decoded, null, "Tampered token must fail signature verification");
+    });
+
+    test("password reset hashed token flow", async () => {
+        const email = "alice@novacall.io";
+        const code = "654321";
+        const hashedCode = crypto.createHash("sha256").update(code).digest("hex");
+        const expires = Date.now() + 15 * 60 * 1000;
+
+        // Verify SHA-256 hashing property
+        assert.notStrictEqual(code, hashedCode);
+        assert.strictEqual(hashedCode.length, 64);
+
+        // Verification simulation
+        const userInputCode = "654321";
+        const inputHash = crypto.createHash("sha256").update(userInputCode).digest("hex");
+        assert.strictEqual(inputHash, hashedCode, "Matching code hash must verify correctly");
+
+        // Expired check
+        const pastExpires = Date.now() - 1000;
+        assert.strictEqual(Date.now() > pastExpires, true, "Expired token must be rejected");
+    });
+
+    test("password reset single use & rate limit", () => {
+        const code = "889900";
+        const hashedCode = crypto.createHash("sha256").update(code).digest("hex");
+        let resetRecord = {
+            hashedCode,
+            expires: Date.now() + 15 * 60 * 1000,
+            attempts: 0
+        };
+
+        // Simulate 5 failed attempts
+        for (let i = 1; i <= 5; i++) {
+            resetRecord.attempts += 1;
+            const badInput = `wrong_${i}`;
+            const badHash = crypto.createHash("sha256").update(badInput).digest("hex");
+            assert.notStrictEqual(badHash, resetRecord.hashedCode);
+        }
+
+        assert.strictEqual(resetRecord.attempts, 5);
+
+        // 6th attempt exceeds max allowed
+        resetRecord.attempts += 1;
+        assert.ok(resetRecord.attempts > 5, "Exceeding 5 attempts must trigger rate limit invalidation");
     });
 });

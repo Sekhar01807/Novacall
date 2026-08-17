@@ -1,4 +1,5 @@
-import { findRoomBySocketId, addChatMessage, getParticipantSocketIds } from "../roomState.js";
+import { requireRoomParticipant, addChatMessage, getParticipantSocketIds } from "../roomState.js";
+import { validateChatMessage } from "../middleware/socketValidator.js";
 import { logger } from "../../utils/logger.js";
 import { ERROR_CODES } from "../../utils/errorCodes.js";
 
@@ -24,14 +25,14 @@ export const resetChatRateLimits = (socketId = null) => {
 
 /**
  * Handle in-meeting real-time chat messages
- * Uses server-enforced sender identity, sliding-window rate limiting, and sanitizes against XSS.
+ * Uses server-enforced sender identity, sliding-window rate limiting, hard 1000-character cap, and sanitizes against XSS.
  * @param {import('socket.io').Server} io
  * @param {import('socket.io').Socket} socket
  * @param {string} rawData - Text message content
  * @param {string} [untrustedSender] - Client supplied sender (ignored for authenticated identity)
  */
 export const handleChatMessage = (io, socket, rawData, untrustedSender) => {
-    if (!rawData || typeof rawData !== 'string' || !rawData.trim()) {
+    if (!validateChatMessage(socket, rawData)) {
         return;
     }
 
@@ -54,11 +55,11 @@ export const handleChatMessage = (io, socket, rawData, untrustedSender) => {
     timestamps.push(now);
     socketMessageTimestamps.set(socket.id, timestamps);
 
-    // Limit maximum message length to prevent spam / payload abuse
-    const messageText = rawData.trim().substring(0, 2000);
+    // Hard server limit on chat message length (1000 chars)
+    const messageText = rawData.trim().substring(0, 1000);
 
-    const { roomCode, room } = findRoomBySocketId(socket.id);
-    if (!roomCode || !room) {
+    const participantCheck = requireRoomParticipant(socket);
+    if (!participantCheck.ok) {
         logger.warn(`Rejected chat message from ${socket.id}: User is not in an active room.`);
         socket.emit("error-message", {
             code: ERROR_CODES.NOT_IN_ROOM,
@@ -67,8 +68,9 @@ export const handleChatMessage = (io, socket, rawData, untrustedSender) => {
         return;
     }
 
+    const { roomCode, room, participant } = participantCheck;
+
     // Enforce server-side authoritative display name
-    const participant = room.participants.get(socket.id);
     const authoritativeSenderName = participant?.displayName || socket.user?.name || socket.user?.username || "Participant";
 
     const messageObj = addChatMessage(roomCode, socket.id, authoritativeSenderName, messageText);

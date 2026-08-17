@@ -28,14 +28,14 @@ Socket.IO connections are authenticated at the handshake level via `socketAuthMi
 
 | Event Name | Payload / Arguments | Description | Server Validation / Rate Limits |
 |---|---|---|---|
-| `join-call` | `(roomCodeOrUrl: string, clientDisplayName?: string)` | Join a video conference room by code or URL. | Room code sanitized; enforces `ROOM_CAPACITY_EXCEEDED` if room >= 25 participants. |
+| `join-call` | `(roomCodeOrUrl: string, clientDisplayName?: string)` | Join a video conference room by code or URL. | Room code sanitized; rate-limited (max 5/10s); enforces `ROOM_CAPACITY_EXCEEDED` if room >= 6 participants (optimal full-mesh limit). |
 | `leave-call` | *None* | Explicitly leave the current meeting room. | Triggers participant teardown and host succession. |
-| `signal` | `(toSocketId: string, message: string)` | Transmit WebRTC SDP Offer/Answer or ICE Candidate to a specific peer. | Enforces strict room isolation; cross-room signals are dropped. |
-| `chat-message` | `(data: string, untrustedSender?: string)` | Send a text message to all participants in the active room. | Rate-limited: max **5 messages per 3 seconds**. Sanitizes HTML against XSS. Max length: 2,000 characters. |
-| `toggle-media-state` | `(mediaType: 'audio' \| 'video', isEnabled: boolean)` | Broadcast local microphone/camera mute status. | Updates server-side participant state and notifies room peers. |
-| `host-mute-user` | `(targetSocketId: string)` | Mute the microphone of a specific participant in the room. | **Host Only**: Server validates `isHost(roomCode, socket.id)`. Rejects non-host with `UNAUTHORIZED_HOST_ACTION`. |
-| `host-kick-user` | `(targetSocketId: string)` | Remove/kick a participant from the meeting room. | **Host Only**: Server validates host privileges; target cannot be self. |
-| `end-meeting-all` | *None* | Terminate the meeting for all participants and purge room state. | **Host Only**: Disconnects all peer room channels and deletes room. |
+| `signal` | `(toSocketId: string, message: string)` | Transmit WebRTC SDP Offer/Answer or ICE Candidate to a specific peer. | Rate-limited (max 30/3s); payload cap 64KB; enforces strict room isolation; cross-room signals are dropped. |
+| `chat-message` | `(data: string, untrustedSender?: string)` | Send a text message to all participants in the active room. | Rate-limited: max **5 messages per 3 seconds**. Sanitizes HTML against XSS. Max length: 1,000 characters. |
+| `toggle-media-state` | `(mediaType: 'audio' \| 'video', isEnabled: boolean)` | Broadcast local microphone/camera mute status. | Payload validated; updates server-side participant state and notifies room peers. |
+| `host-mute-user` | `(targetSocketId: string)` | Mute the microphone of a specific participant in the room. | **Host Only**: Server validates `requireRoomHost(socket)`. Rate-limited (max 10/5s). Rejects non-host with `UNAUTHORIZED_HOST_ACTION`. |
+| `host-kick-user` | `(targetSocketId: string)` | Remove/kick a participant from the meeting room. | **Host Only**: Server validates `requireRoomHost(socket)`; target cannot be self. |
+| `end-meeting-all` | *None* | Terminate the meeting for all participants and purge room state. | **Host Only**: Server validates `requireRoomHost(socket)`; disconnects all peer room channels and deletes room. |
 
 ---
 
@@ -61,15 +61,17 @@ Socket.IO connections are authenticated at the handshake level via `socketAuthMi
 | Error Code | Description | HTTP / Socket Trigger |
 |---|---|---|
 | `VALIDATION_ERROR` | Missing or invalid request parameters | Auth / Scheduling / History endpoints |
+| `INVALID_PAYLOAD` | Malformed socket event payload or invalid types | Socket event validator |
 | `AUTH_TOKEN_REQUIRED` | Missing Authorization Bearer token header | Protected REST endpoints |
 | `AUTH_TOKEN_INVALID` | Invalid, tampered, or expired JWT | Auth middleware / Socket handshake |
 | `AUTH_USER_NOT_FOUND` | User account does not exist | Login / User profile fetch |
 | `AUTH_INVALID_CREDENTIALS` | Incorrect username or password | Login / Change password |
 | `INVALID_ROOM_CODE` | Empty or malformed room code string | `join-call` |
-| `ROOM_CAPACITY_EXCEEDED` | Meeting room has reached maximum limit (25) | `join-call` |
+| `ROOM_CAPACITY_EXCEEDED` | Meeting room has reached maximum limit (6) | `join-call` |
 | `ROOM_JOIN_FAILED` | Internal error joining room | `join-call` |
-| `RATE_LIMIT_EXCEEDED` | Request or message frequency threshold exceeded | REST rate limiter / `chat-message` |
-| `NOT_IN_ROOM` | Socket attempted in-meeting action without active room | `chat-message` |
+| `RATE_LIMIT_EXCEEDED` | Request or message frequency threshold exceeded | REST rate limiter / `chat-message` / `signal` |
+| `TOO_MANY_ATTEMPTS` | Exceeded 5 failed verification attempts | `reset_password` |
+| `NOT_IN_ROOM` | Socket attempted in-meeting action without active room | `chat-message` / `signal` |
 | `UNAUTHORIZED_HOST_ACTION` | Non-host attempted host moderation command | `host-mute-user`, `host-kick-user`, `end-meeting-all` |
 | `NOT_FOUND` | Scheduled meeting or resource not found | REST delete endpoints |
 | `FORBIDDEN` | Caller is not owner of target resource | Scheduled meeting cancellation |

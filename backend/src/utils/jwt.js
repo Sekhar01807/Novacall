@@ -1,5 +1,36 @@
 import jwt from "jsonwebtoken";
 
+const WEAK_SECRETS = new Set([
+    "secret",
+    "jwt_secret",
+    "password",
+    "123456",
+    "12345678",
+    "novacall_dev_only_jwt_secret_do_not_use_in_production"
+]);
+
+/**
+ * Validate JWT Secret strength on server startup
+ * Refuses execution in production if the secret is absent, insecure, or shorter than 32 characters.
+ */
+export const validateJwtSecretAtStartup = () => {
+    const secret = process.env.JWT_SECRET;
+    const isProduction = process.env.NODE_ENV === "production";
+
+    if (isProduction) {
+        if (!secret) {
+            throw new Error("FATAL: JWT_SECRET environment variable is required in production mode.");
+        }
+        if (secret.length < 32) {
+            throw new Error("FATAL: JWT_SECRET must be at least 32 characters long in production mode.");
+        }
+        if (WEAK_SECRETS.has(secret.toLowerCase())) {
+            throw new Error("FATAL: JWT_SECRET cannot be a known weak or placeholder default secret.");
+        }
+    }
+    return true;
+};
+
 export const getJwtSecret = () => {
     const secret = process.env.JWT_SECRET;
     if (!secret) {
@@ -15,10 +46,10 @@ export const getJwtSecret = () => {
  * Sign a standard JWT access token
  * @param {Object} payload - User data to embed in the token
  * @param {string} [secret] - Secret key for signing (defaults to environment JWT_SECRET)
- * @param {string|number} [expiresIn='7d'] - Expiration window
+ * @param {string|number} [expiresIn='24h'] - Expiration window (default 24 hours)
  * @returns {string} - Signed JWT token
  */
-export const signJWT = (payload, secret = getJwtSecret(), expiresIn = "7d") => {
+export const signJWT = (payload, secret = getJwtSecret(), expiresIn = "24h") => {
     const options = {};
     if (expiresIn && !payload.exp) {
         options.expiresIn = expiresIn;

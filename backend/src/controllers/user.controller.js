@@ -1,4 +1,5 @@
 import httpStatus from "http-status";
+import crypto from "node:crypto";
 import { User } from "../models/UserModel.js";
 import bcrypt from "bcrypt";
 import { Meeting } from "../models/meetingModel.js";
@@ -6,6 +7,7 @@ import { ScheduledMeeting } from "../models/scheduledMeetingModel.js";
 import { signJWT } from "../utils/jwt.js";
 import { ERROR_CODES, formatErrorResponse, formatSuccessResponse } from "../utils/errorCodes.js";
 import { logger } from "../utils/logger.js";
+import { generateSecureRoomCode } from "../utils/roomCodeGenerator.js";
 
 const login = async (req, res) => {
     const { username, password } = req.body;
@@ -369,43 +371,65 @@ const deleteAccount = async (req, res) => {
     }
 };
 
+// In-memory hashed verification store: email => { hashedCode, expires, attempts }
 const resetCodes = new Map();
 
 /**
  * Request a password reset code
- * Note: NovaCall currently operates with an in-memory verification code store.
- * In development/demo environments, the code is returned in the response payload for testing.
- * In a production deployment with configured SMTP/SES mailer, the code is dispatched via email.
+ * Security hardening:
+ * - Generates cryptographically secure 6-digit code.
+ * - Stores SHA-256 hashed code with 15-minute expiration and max 5 verification attempts.
+ * - In production mode, code is NEVER returned in response.
  */
 const forgotPassword = async (req, res) => {
     const { email } = req.body;
-    if (!email) {
+    if (!email || !email.trim()) {
         return res.status(httpStatus.BAD_REQUEST).json(
             formatErrorResponse("Email is required", ERROR_CODES.VALIDATION_ERROR, req.id)
         );
     }
 
     try {
-        const user = await User.findOne({ email: email.toLowerCase() });
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await User.findOne({ email: normalizedEmail });
         if (!user) {
             return res.status(httpStatus.NOT_FOUND).json(
                 formatErrorResponse("No account found with this email address", ERROR_CODES.AUTH_USER_NOT_FOUND, req.id)
             );
         }
 
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        resetCodes.set(email.toLowerCase(), { code, expires: Date.now() + 15 * 60 * 1000 });
-        logger.info(`Password reset requested for email: ${email.toLowerCase()}`, { requestId: req.id });
+        // Generate cryptographically secure 6-digit code
+        const code = crypto.randomInt(100000, 1000000).toString();
+        // Compute SHA-256 hash for secure storage
+        const hashedCode = crypto.createHash("sha256").update(code).digest("hex");
+        const expires = Date.now() + 15 * 60 * 1000; // 15 minutes
 
+        resetCodes.set(normalizedEmail, {
+            hashedCode,
+            expires,
+            attempts: 0
+        });
+
+        // Persist to user record as well
+        user.resetPasswordToken = hashedCode;
+        user.resetPasswordExpires = new Date(expires);
+        user.resetPasswordAttempts = 0;
+        await user.save();
+
+        logger.info(`Password reset code generated and hashed for: ${normalizedEmail}`, { requestId: req.id });
+
+        const isProduction = process.env.NODE_ENV === "production";
         const responsePayload = {
             success: true,
-            message: "Password reset code generated. (Demo Notice: Verification code provided directly for testing. In production, configure an SMTP service.)",
+            message: isProduction
+                ? "If an account exists with this email, a verification code has been dispatched."
+                : "Password reset code generated. (Demo Notice: Verification code provided in payload for development testing only.)",
             code: "RESET_CODE_DISPATCHED",
             requestId: req.id
         };
 
-        // Always include resetCode in non-production or demo modes for direct testing
-        if (process.env.NODE_ENV !== "production" || !process.env.SMTP_HOST) {
+        // NEVER expose raw reset code in production
+        if (!isProduction && !process.env.SMTP_HOST) {
             responsePayload.resetCode = code;
         }
 
@@ -418,6 +442,13 @@ const forgotPassword = async (req, res) => {
     }
 };
 
+/**
+ * Verify reset code and update user password
+ * Security hardening:
+ * - Constant-time / SHA-256 hash comparison.
+ * - Max 5 attempts rate limiting per code.
+ * - Single-use token invalidation upon success.
+ */
 const resetPasswordWithCode = async (req, res) => {
     const { email, resetCode, newPassword } = req.body;
     if (!email || !resetCode || !newPassword) {
@@ -426,24 +457,81 @@ const resetPasswordWithCode = async (req, res) => {
         );
     }
 
-    try {
-        const record = resetCodes.get(email.toLowerCase());
-        if (!record || record.code !== resetCode || Date.now() > record.expires) {
-            return res.status(httpStatus.BAD_REQUEST).json(
-                formatErrorResponse("Invalid or expired reset code", ERROR_CODES.INVALID_CODE, req.id)
-            );
-        }
+    if (newPassword.length < 8) {
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse("New password must be at least 8 characters long", ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
+    }
 
-        const user = await User.findOne({ email: email.toLowerCase() });
+    try {
+        const normalizedEmail = email.trim().toLowerCase();
+        let record = resetCodes.get(normalizedEmail);
+
+        const user = await User.findOne({ email: normalizedEmail });
         if (!user) {
             return res.status(httpStatus.NOT_FOUND).json(
                 formatErrorResponse("User not found", ERROR_CODES.AUTH_USER_NOT_FOUND, req.id)
             );
         }
 
+        // Fallback to database user record if memory was reset
+        if (!record && user.resetPasswordToken && user.resetPasswordExpires) {
+            record = {
+                hashedCode: user.resetPasswordToken,
+                expires: new Date(user.resetPasswordExpires).getTime(),
+                attempts: user.resetPasswordAttempts || 0
+            };
+        }
+
+        if (!record) {
+            return res.status(httpStatus.BAD_REQUEST).json(
+                formatErrorResponse("No active password reset request found for this email", ERROR_CODES.INVALID_CODE, req.id)
+            );
+        }
+
+        // Check expiration
+        if (Date.now() > record.expires) {
+            resetCodes.delete(normalizedEmail);
+            user.resetPasswordToken = null;
+            user.resetPasswordExpires = null;
+            await user.save();
+            return res.status(httpStatus.BAD_REQUEST).json(
+                formatErrorResponse("Verification code has expired. Please request a new code.", ERROR_CODES.INVALID_CODE, req.id)
+            );
+        }
+
+        // Rate limit attempts (Max 5 attempts)
+        record.attempts = (record.attempts || 0) + 1;
+        if (record.attempts > 5) {
+            resetCodes.delete(normalizedEmail);
+            user.resetPasswordToken = null;
+            user.resetPasswordExpires = null;
+            user.resetPasswordAttempts = 0;
+            await user.save();
+            return res.status(httpStatus.TOO_MANY_REQUESTS).json(
+                formatErrorResponse("Too many invalid attempts. This reset code is now invalidated.", ERROR_CODES.TOO_MANY_ATTEMPTS, req.id)
+            );
+        }
+
+        // Hash user supplied code to compare against stored hash
+        const inputHash = crypto.createHash("sha256").update(String(resetCode).trim()).digest("hex");
+        const isMatch = record.hashedCode === inputHash;
+
+        if (!isMatch) {
+            return res.status(httpStatus.BAD_REQUEST).json(
+                formatErrorResponse(`Invalid verification code. (${5 - record.attempts} attempts remaining)`, ERROR_CODES.INVALID_CODE, req.id)
+            );
+        }
+
+        // Code is valid: Update password and enforce single-use invalidation
         user.password = await bcrypt.hash(newPassword, 10);
+        user.resetPasswordToken = null;
+        user.resetPasswordExpires = null;
+        user.resetPasswordAttempts = 0;
         await user.save();
-        resetCodes.delete(email.toLowerCase());
+
+        resetCodes.delete(normalizedEmail);
+        logger.info(`Password successfully reset for: ${normalizedEmail}`, { requestId: req.id });
 
         res.status(httpStatus.OK).json(
             formatSuccessResponse(null, "Password reset successful. You can now log in.", req.id)
@@ -458,11 +546,11 @@ const resetPasswordWithCode = async (req, res) => {
 
 const createScheduledMeeting = async (req, res) => {
     const title = req.body.title;
-    const meeting_code = req.body.meeting_code;
+    const meeting_code = req.body.meeting_code || generateSecureRoomCode();
     const date = req.body.date || req.body.scheduled_date;
     const time = req.body.time || req.body.scheduled_time;
 
-    if (!title || !date || !time || !meeting_code) {
+    if (!title || !date || !time) {
         return res.status(httpStatus.BAD_REQUEST).json(
             formatErrorResponse("Missing required fields for scheduling", ERROR_CODES.VALIDATION_ERROR, req.id)
         );
@@ -496,7 +584,7 @@ const createScheduledMeeting = async (req, res) => {
 const getUpcomingMeetings = async (req, res) => {
     try {
         const user = req.user;
-        const meetings = await ScheduledMeeting.find({ user_id: user.username }).sort({ date: 1, time: 1 });
+        const meetings = await ScheduledMeeting.find({ user_id: user.username }).sort({ scheduled_date: 1, scheduled_time: 1 });
         res.status(httpStatus.OK).json({
             success: true,
             meetings: meetings,
@@ -515,21 +603,22 @@ const deleteScheduledMeeting = async (req, res) => {
     const { id } = req.params;
     try {
         const user = req.user;
-        const meeting = await ScheduledMeeting.findById(id);
+        // Atomic ownership query: Enforce meeting ownership at the database query level
+        const deleted = await ScheduledMeeting.findOneAndDelete({ _id: id, user_id: user.username });
 
-        if (!meeting) {
+        if (!deleted) {
+            // Check if meeting exists under another user to distinguish 403 Forbidden vs 404 Not Found
+            const existsUnderOtherUser = await ScheduledMeeting.findById(id);
+            if (existsUnderOtherUser) {
+                return res.status(httpStatus.FORBIDDEN).json(
+                    formatErrorResponse("You are not authorized to delete this meeting", ERROR_CODES.FORBIDDEN, req.id)
+                );
+            }
             return res.status(httpStatus.NOT_FOUND).json(
                 formatErrorResponse("Scheduled meeting not found", ERROR_CODES.NOT_FOUND, req.id)
             );
         }
 
-        if (meeting.user_id !== user.username) {
-            return res.status(httpStatus.FORBIDDEN).json(
-                formatErrorResponse("You are not authorized to delete this meeting", ERROR_CODES.FORBIDDEN, req.id)
-            );
-        }
-
-        await ScheduledMeeting.findByIdAndDelete(id);
         res.status(httpStatus.OK).json(
             formatSuccessResponse(null, "Scheduled meeting cancelled successfully", req.id)
         );

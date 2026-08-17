@@ -79,8 +79,8 @@ export const getRoom = (roomCode) => {
     return rooms.get(code) || null;
 };
 
-// Default maximum participant capacity per video meeting room
-export const DEFAULT_MAX_ROOM_CAPACITY = parseInt(process.env.MAX_ROOM_CAPACITY, 10) || 25;
+// Default maximum participant capacity per video meeting room (Optimized for full-mesh P2P WebRTC)
+export const DEFAULT_MAX_ROOM_CAPACITY = parseInt(process.env.MAX_ROOM_CAPACITY, 10) || 6;
 
 /**
  * Check if a room has reached its maximum participant limit
@@ -193,6 +193,53 @@ export const findRoomBySocketId = (socketId) => {
         }
     }
     return { roomCode: '', room: null };
+};
+
+/**
+ * Centralized Participant Verification Helper
+ * Ensures the socket belongs to an active room and returns authoritative metadata
+ * @param {import('socket.io').Socket|string} socketOrId
+ * @param {string} [expectedRoomCode]
+ * @returns {{ ok: boolean, error?: string, roomCode?: string, room?: Object, participant?: Object }}
+ */
+export const requireRoomParticipant = (socketOrId, expectedRoomCode = null) => {
+    const socketId = typeof socketOrId === 'string' ? socketOrId : socketOrId?.id;
+    if (!socketId) return { ok: false, error: "INVALID_SOCKET" };
+
+    const { roomCode, room } = findRoomBySocketId(socketId);
+    if (!roomCode || !room) {
+        return { ok: false, error: "NOT_IN_ROOM" };
+    }
+
+    if (expectedRoomCode && normalizeRoomCode(expectedRoomCode) !== roomCode) {
+        return { ok: false, error: "ROOM_MISMATCH" };
+    }
+
+    const participant = room.participants.get(socketId);
+    return { ok: true, roomCode, room, participant };
+};
+
+/**
+ * Centralized Host Authorization Helper
+ * Validates server-side that the socket is the designated host of their current room
+ * @param {import('socket.io').Socket|string} socketOrId
+ * @param {string} [expectedRoomCode]
+ * @returns {{ ok: boolean, error?: string, roomCode?: string, room?: Object }}
+ */
+export const requireRoomHost = (socketOrId, expectedRoomCode = null) => {
+    const participantCheck = requireRoomParticipant(socketOrId, expectedRoomCode);
+    if (!participantCheck.ok) {
+        return { ok: false, error: participantCheck.error };
+    }
+
+    const { roomCode, room } = participantCheck;
+    const socketId = typeof socketOrId === 'string' ? socketOrId : socketOrId?.id;
+
+    if (room.hostSocketId !== socketId) {
+        return { ok: false, error: "UNAUTHORIZED_HOST_ACTION", roomCode, room };
+    }
+
+    return { ok: true, roomCode, room };
 };
 
 /**

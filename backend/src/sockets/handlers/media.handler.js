@@ -1,4 +1,5 @@
-import { findRoomBySocketId, updateMediaState, getParticipantSocketIds } from "../roomState.js";
+import { requireRoomParticipant, updateMediaState, getParticipantSocketIds } from "../roomState.js";
+import { validateMediaToggle } from "../middleware/socketValidator.js";
 import { logger } from "../../utils/logger.js";
 
 /**
@@ -10,15 +11,16 @@ import { logger } from "../../utils/logger.js";
  * @param {boolean} isEnabled
  */
 export const handleToggleMediaState = (io, socket, mediaType, isEnabled) => {
-    if (mediaType !== 'audio' && mediaType !== 'video') {
+    if (!validateMediaToggle(socket, mediaType, isEnabled)) {
         return;
     }
 
-    const { roomCode, room } = findRoomBySocketId(socket.id);
-    if (!roomCode || !room) {
+    const participantCheck = requireRoomParticipant(socket);
+    if (!participantCheck.ok) {
         return;
     }
 
+    const { roomCode } = participantCheck;
     updateMediaState(roomCode, socket.id, mediaType, Boolean(isEnabled));
 
     const participantSocketIds = getParticipantSocketIds(roomCode);

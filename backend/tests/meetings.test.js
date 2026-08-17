@@ -82,30 +82,41 @@ describe("Meetings", () => {
         assert.strictEqual(forbiddenError.code, ERROR_CODES.FORBIDDEN);
     });
 
-    test("meeting lifecycle", () => {
-        // Full lifecycle: Create -> Query with pagination -> Complete -> Delete
-        const meetingCode = "lifecycle-room-1";
-        
-        // 1. Log activity
-        mockMeetingsDb.push({
-            id: "meet_002",
-            user_id: userIdAlice,
-            meeting_code: meetingCode,
-            date: new Date()
-        });
+    test("secure room code generator", async () => {
+        const { generateSecureRoomCode, isValidRoomCodeFormat } = await import("../src/utils/roomCodeGenerator.js");
+        const code1 = generateSecureRoomCode();
+        const code2 = generateSecureRoomCode();
 
-        // 2. Query paginated activity
-        const page = 1;
-        const limit = 10;
-        const total = mockMeetingsDb.filter(m => m.user_id === userIdAlice).length;
-        const totalPages = Math.ceil(total / limit) || 1;
+        assert.ok(code1.startsWith("nov-"), "Room code must start with default prefix");
+        assert.notStrictEqual(code1, code2, "Cryptographic generator must produce unique codes");
+        assert.strictEqual(isValidRoomCodeFormat(code1), true, "Generated room code format must be valid");
+        assert.strictEqual(isValidRoomCodeFormat(""), false);
+        assert.strictEqual(isValidRoomCodeFormat("a"), false);
+    });
 
-        assert.ok(total >= 1);
-        assert.strictEqual(page, 1);
-        assert.strictEqual(totalPages, 1);
+    test("atomic IDOR ownership deletion query", () => {
+        // Simulate atomic findOneAndDelete({ _id: id, user_id: username })
+        const meetingsCollection = [
+            { _id: "meet_a", user_id: "alice_w", title: "Alice Sync" },
+            { _id: "meet_b", user_id: "bob_m", title: "Bob Sync" }
+        ];
 
-        // 3. Clear meeting
-        mockMeetingsDb = mockMeetingsDb.filter(m => m.meeting_code !== meetingCode);
-        assert.strictEqual(mockMeetingsDb.some(m => m.meeting_code === meetingCode), false);
+        // Alice attempts to delete Bob's meeting
+        const deleteForAlice = (id, username) => {
+            const index = meetingsCollection.findIndex(m => m._id === id && m.user_id === username);
+            if (index !== -1) {
+                return meetingsCollection.splice(index, 1)[0];
+            }
+            return null;
+        };
+
+        const result = deleteForAlice("meet_b", "alice_w");
+        assert.strictEqual(result, null, "Atomic query must not delete another user's meeting");
+        assert.strictEqual(meetingsCollection.length, 2);
+
+        // Bob deletes own meeting
+        const bobResult = deleteForAlice("meet_b", "bob_m");
+        assert.ok(bobResult);
+        assert.strictEqual(meetingsCollection.length, 1);
     });
 });

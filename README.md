@@ -464,17 +464,17 @@ NovaCall was built to understand and apply several important full-stack concepts
 
 To provide full engineering transparency, NovaCall's current architectural trade-offs are documented below:
 
-### 1. P2P Mesh Topology
-- **Current Behavior**: Video and audio streams are exchanged directly peer-to-peer between client browsers in a full-mesh topology.
-- **Trade-off**: Highly cost-effective (zero media server bandwidth costs) and ultra-low latency for 2–6 participants. For large meetings (20+ participants), an upstream Selective Forwarding Unit (SFU) like mediasoup/Pion is recommended to reduce client uplink load from $O(N)$ to $O(1)$.
+### 1. P2P Mesh Topology (Enforced Capacity = 6)
+- **Current Behavior**: Video and audio streams are exchanged directly peer-to-peer between client browsers in a full-mesh topology. The server strictly enforces a **6-participant capacity limit** (`MAX_ROOM_CAPACITY=6`) per room.
+- **Rationale**: Full-mesh topology provides zero media server bandwidth costs and ultra-low latency for 2–6 participants. For enterprise-scale meetings (20+ participants), an upstream Selective Forwarding Unit (SFU) like mediasoup/Pion is recommended to reduce client uplink load from $O(N)$ to $O(1)$.
 
-### 2. In-Memory Active Room State
-- **Current Behavior**: Active meeting rooms, participant maps, host status, and rate-limiting records reside in the signaling server's memory.
-- **Trade-off**: Zero external latency and optimal performance for single-instance signaling. For multi-node horizontal scaling behind a load balancer, a shared Redis adapter (`@socket.io/redis-adapter`) and sticky sessions are recommended.
+### 2. In-Memory Active Room State & Event Rate Limiting
+- **Current Behavior**: Active meeting rooms, participant maps, host status, and event rate-limiting records (chat, signaling, moderation) reside in the signaling server's memory.
+- **Rationale**: Zero external latency and optimal performance for single-instance signaling. For multi-node horizontal scaling behind a load balancer, a shared Redis adapter (`@socket.io/redis-adapter`) and sticky sessions are recommended.
 
-### 3. Simulated Email Verification Delivery
-- **Current Behavior**: The password reset workflow generates secure 6-digit verification codes in-memory, returning them in the response payload during demo/development mode.
-- **Trade-off**: Eliminates third-party transactional email dependencies (SendGrid/Resend) for demonstration and testing. In a production environment, configuring an SMTP provider delivers codes to registered user mailboxes.
+### 3. Password Reset Security & Simulated Email Delivery
+- **Current Behavior**: The password reset workflow generates secure 6-digit verification codes, stores them using **SHA-256 cryptographic hashing**, enforces a **15-minute expiration window**, caps verification attempts at **5 attempts max**, and invalidates the code on single use.
+- **Production Safety**: When running in production mode (`NODE_ENV=production`), verification codes are never exposed in API responses. In local development/testing mode, the code is included for automated UI and integration testing.
 
 ---
 

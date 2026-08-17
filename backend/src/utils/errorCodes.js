@@ -5,6 +5,7 @@ export const ERROR_CODES = {
     // Validation & Input Errors
     VALIDATION_ERROR: "VALIDATION_ERROR",
     INVALID_PARAMETERS: "INVALID_PARAMETERS",
+    INVALID_PAYLOAD: "INVALID_PAYLOAD",
 
     // Authentication & Authorization Errors
     AUTH_TOKEN_REQUIRED: "AUTH_TOKEN_REQUIRED",
@@ -15,6 +16,7 @@ export const ERROR_CODES = {
     UNAUTHORIZED: "UNAUTHORIZED",
     FORBIDDEN: "FORBIDDEN",
     INVALID_CODE: "INVALID_CODE",
+    TOO_MANY_ATTEMPTS: "TOO_MANY_ATTEMPTS",
 
     // Room & Call Management Errors
     INVALID_ROOM_CODE: "INVALID_ROOM_CODE",
