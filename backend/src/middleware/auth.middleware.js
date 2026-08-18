@@ -42,6 +42,19 @@ export const authMiddleware = async (req, res, next) => {
             );
         }
 
+        // Token Version Revocation: Invalidate old JWTs when password changed or user signed out of all devices
+        const expectedVersion = user.tokenVersion || 0;
+        const tokenVersion = decoded.tokenVersion ?? 0;
+        if (tokenVersion < expectedVersion) {
+            return res.status(httpStatus.UNAUTHORIZED).json(
+                formatErrorResponse(
+                    "Session has expired or been revoked. Please log in again.",
+                    ERROR_CODES.AUTH_TOKEN_INVALID,
+                    req.id
+                )
+            );
+        }
+
         req.user = user;
         next();
     } catch (error) {

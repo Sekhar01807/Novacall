@@ -17,6 +17,12 @@ dotenv.config();
 // 0. Validate Critical Environment Configurations on Startup
 try {
     validateJwtSecretAtStartup();
+    if (process.env.NODE_ENV === "production") {
+        const configuredOrigins = process.env.FRONTEND_URL || "";
+        if (!configuredOrigins || configuredOrigins.trim() === "*" || configuredOrigins.trim() === "") {
+            throw new Error("FATAL: FRONTEND_URL must be explicitly configured with allowed origin(s) in production mode (wildcard '*' is forbidden with credentials: true).");
+        }
+    }
 } catch (err) {
     logger.error("Startup Configuration Error:", err);
     if (process.env.NODE_ENV === "production") {
@@ -34,7 +40,7 @@ app.set("port", process.env.PORT || 8000);
 // 1. Request ID & Correlation ID Middleware (applies to all incoming requests)
 app.use(requestIdMiddleware);
 
-// 2. HTTP Security Headers Middleware (Production-Grade Protection)
+// 2. HTTP Security Headers Middleware (Production-Grade Protection + CSP)
 app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
@@ -43,6 +49,11 @@ app.use((req, res, next) => {
     if (req.secure || req.headers["x-forwarded-proto"] === "https") {
         res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     }
+    // Content-Security-Policy configured for React SPA, WebSockets, WebRTC STUN/TURN, Google Fonts, and MUI
+    res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; media-src 'self' blob: mediastream:; connect-src 'self' ws: wss: http: https:;"
+    );
     next();
 });
 

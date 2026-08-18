@@ -8,7 +8,8 @@ import {
     getChatMessages,
     sanitizeHTML
 } from "../roomState.js";
-import { validateJoinCall } from "../middleware/socketValidator.js";
+import { validateJoinCall, resetSocketRateLimits } from "../middleware/socketValidator.js";
+import { resetChatRateLimits } from "./chat.handler.js";
 import { logger } from "../../utils/logger.js";
 import { ERROR_CODES } from "../../utils/errorCodes.js";
 
@@ -115,6 +116,10 @@ export const handleJoinCall = (io, socket, roomCodeOrUrl, clientSuppliedName) =>
  * @param {import('socket.io').Socket} socket
  */
 export const handleDisconnect = (io, socket) => {
+    // Memory hygiene: purge per-socket rate-limit maps on disconnect
+    resetSocketRateLimits(socket.id);
+    resetChatRateLimits(socket.id);
+
     const { roomCode, room } = findRoomBySocketId(socket.id);
     if (!roomCode || !room) {
         logger.info(`Socket disconnected without active room: ${socket.id}`);

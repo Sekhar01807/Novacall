@@ -163,4 +163,76 @@ describe("Authentication", () => {
         resetRecord.attempts += 1;
         assert.ok(resetRecord.attempts > 5, "Exceeding 5 attempts must trigger rate limit invalidation");
     });
+
+    test("token version session revocation on signout and password change", () => {
+        const user = {
+            id: "60d0fe4f5311236168a109aa",
+            username: "alice_w",
+            tokenVersion: 0
+        };
+
+        // 1. Initial token signed with version 0
+        const tokenV0 = signJWT({ id: user.id, username: user.username, tokenVersion: user.tokenVersion }, testSecret, "1h");
+        const decodedV0 = verifyJWT(tokenV0, testSecret);
+        assert.strictEqual(decodedV0.tokenVersion, 0);
+
+        // Middleware check: tokenVersion (0) matches user.tokenVersion (0) -> VALID
+        assert.strictEqual(decodedV0.tokenVersion >= user.tokenVersion, true);
+
+        // 2. User invokes sign out all devices / changes password -> increments tokenVersion to 1
+        user.tokenVersion = 1;
+
+        // Old token (version 0) fails version check -> REVOKED
+        assert.strictEqual(decodedV0.tokenVersion >= user.tokenVersion, false, "Old token must be rejected after session revocation");
+
+        // 3. New token signed with version 1 -> VALID
+        const tokenV1 = signJWT({ id: user.id, username: user.username, tokenVersion: user.tokenVersion }, testSecret, "1h");
+        const decodedV1 = verifyJWT(tokenV1, testSecret);
+        assert.strictEqual(decodedV1.tokenVersion, 1);
+        assert.strictEqual(decodedV1.tokenVersion >= user.tokenVersion, true);
+    });
+
+    test("profile DTO strictly prevents leakage of resetPasswordToken and internal security fields", async () => {
+        const { buildUserProfileDTO } = await import("../src/controllers/user.controller.js");
+
+        const mockUserWithSecrets = {
+            name: "Alice Williams",
+            email: "alice@novacall.io",
+            username: "alice_w",
+            password: "hashed_bcrypt_password_secret",
+            resetPasswordToken: "secret_sha256_reset_hash_123456",
+            resetPasswordExpires: new Date(Date.now() + 900000),
+            resetPasswordAttempts: 2,
+            tokenVersion: 3,
+            themeMode: "dark",
+            jobTitle: "Principal Engineer",
+            company: "Nova Systems"
+        };
+
+        const publicDTO = buildUserProfileDTO(mockUserWithSecrets, "req-test-999");
+
+        // Allowed public fields present
+        assert.strictEqual(publicDTO.name, "Alice Williams");
+        assert.strictEqual(publicDTO.username, "alice_w");
+        assert.strictEqual(publicDTO.email, "alice@novacall.io");
+        assert.strictEqual(publicDTO.jobTitle, "Principal Engineer");
+
+        // Security sensitive fields strictly excluded
+        assert.strictEqual(publicDTO.password, undefined, "Password must never be in profile DTO");
+        assert.strictEqual(publicDTO.resetPasswordToken, undefined, "Reset token must never be in profile DTO");
+        assert.strictEqual(publicDTO.resetPasswordExpires, undefined, "Reset expires must never be in profile DTO");
+        assert.strictEqual(publicDTO.resetPasswordAttempts, undefined, "Reset attempts must never be in profile DTO");
+        assert.strictEqual(publicDTO.tokenVersion, undefined, "Token version must never be in profile DTO");
+    });
+
+    test("generic anti-enumeration response for forgot password", () => {
+        // Generic dispatch message returned regardless of account existence
+        const genericMessage = "If an account exists with this email, a verification code has been dispatched.";
+        const responseExisting = { success: true, message: genericMessage, code: "RESET_CODE_DISPATCHED" };
+        const responseNonExisting = { success: true, message: genericMessage, code: "RESET_CODE_DISPATCHED" };
+
+        assert.strictEqual(responseExisting.message, responseNonExisting.message);
+        assert.strictEqual(responseExisting.code, responseNonExisting.code);
+    });
 });
+

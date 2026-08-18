@@ -34,12 +34,14 @@ describe("Meetings", () => {
     });
 
     test("schedule meeting", () => {
+        const rawDate = "2026-09-01";
+        const rawTime = "10:00 AM";
         const scheduledPayload = {
             id: "sched_001",
             user_id: userIdAlice,
             title: "Q3 Roadmap Review",
-            scheduled_date: "2026-09-01",
-            scheduled_time: "10:00 AM",
+            scheduled_date: new Date(rawDate),
+            scheduled_time: rawTime,
             meeting_code: "roadmap-q3",
             created_at: new Date()
         };
@@ -48,6 +50,8 @@ describe("Meetings", () => {
         assert.strictEqual(mockScheduledDb.length, 1);
         assert.strictEqual(mockScheduledDb[0].title, "Q3 Roadmap Review");
         assert.strictEqual(mockScheduledDb[0].meeting_code, "roadmap-q3");
+        assert.ok(mockScheduledDb[0].scheduled_date instanceof Date, "scheduled_date must be a valid Date object");
+        assert.strictEqual(mockScheduledDb[0].scheduled_time, "10:00 AM", "scheduled_time must match schema field");
     });
 
     test("delete meeting", () => {

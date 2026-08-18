@@ -42,6 +42,10 @@ const userSchema = new Schema({
         type: Number,
         default: 0
     },
+    tokenVersion: {
+        type: Number,
+        default: 0
+    },
     jobTitle: {
         type: String,
         default: "",

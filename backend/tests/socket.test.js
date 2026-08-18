@@ -345,4 +345,16 @@ describe("Socket.IO", () => {
         assert.strictEqual(nonParticipantCheck.ok, false);
         assert.strictEqual(nonParticipantCheck.error, "NOT_IN_ROOM");
     });
+
+    test("rate limit cleanup on socket disconnect", async () => {
+        const { resetSocketRateLimits } = await import("../src/sockets/middleware/socketValidator.js");
+        const { resetChatRateLimits } = await import("../src/sockets/handlers/chat.handler.js");
+
+        // Verify functions accept socketId and clear without errors
+        assert.doesNotThrow(() => resetSocketRateLimits("socket_temp_123"));
+        assert.doesNotThrow(() => resetChatRateLimits("socket_temp_123"));
+        assert.doesNotThrow(() => resetSocketRateLimits());
+        assert.doesNotThrow(() => resetChatRateLimits());
+    });
 });
+
