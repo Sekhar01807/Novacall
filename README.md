@@ -190,11 +190,12 @@ Novacall/
 NovaCall enforces strict security boundaries across both HTTP and WebSocket interfaces:
 
 ### 1. Invariable IDOR (Insecure Direct Object Reference) Protection
-- **Scheduled Meetings**: Creation, retrieval, and deletion queries are strictly scoped to `req.user.username`. `DELETE /delete_scheduled_meeting/:id` executes an atomic `findOneAndDelete({ _id: id, user_id: req.user.username })` query. If the resource exists under a different account, the server rejects the operation with `403 FORBIDDEN`.
+- **Scheduled Meetings**: Creation, retrieval, and deletion queries are strictly scoped to `req.user.username`. `createScheduledMeeting` parses and persists schema-compliant `scheduled_date` (Date) and `scheduled_time`. `DELETE /delete_scheduled_meeting/:id` executes an atomic `findOneAndDelete({ _id: id, user_id: req.user.username })` query. If the resource exists under a different account, the server rejects the operation with `403 FORBIDDEN`.
 - **Meeting Activity History**: History writes and paginated history queries are unconditionally bound to the authenticated `req.user.username`.
-- **User Profile Operations**: `GET /get_profile` and `POST /update_profile` exclusively operate on `req.user` decoded from the verified JWT. Payload updates are whitelisted against unauthorized schema injections.
-- **Account Deletion**: Cascading deletion removes only documents matching the authenticated user's ID and username.
-- **Password Modification**: `POST /change_password` verifies the existing bcrypt password hash for `req.user._id` before applying new hashed credentials.
+- **User Profile DTO Protection**: `GET /get_profile` and `POST /update_profile` return an explicit public DTO (`buildUserProfileDTO`), strictly preventing leakage of `resetPasswordToken`, `resetPasswordExpires`, `resetPasswordAttempts`, `tokenVersion`, or credentials.
+- **Atomic Account Deletion**: Executes within a MongoDB transaction session with fallback to ensure clean cascading deletion.
+- **Stateless Session Revocation (`tokenVersion`)**: Adding a `tokenVersion` counter to user records enables instantaneous revocation of all active JWT sessions whenever a user triggers `signOutAllDevices`, changes their password, or resets their credentials.
+- **Anti-Enumeration Generic Responses**: Generic responses on `/login` (`AUTH_INVALID_CREDENTIALS`) and `/forgot_password` ensure malicious actors cannot enumerate registered usernames or emails.
 
 ### 2. Five-Stage Socket.IO Event Authorization Pipeline
 Every real-time event must pass through an authoritative 5-stage validation gate:
@@ -204,15 +205,19 @@ $$\text{Handshake Authentication} \longrightarrow \text{Room Membership} \longri
 2. **Room Membership**: Sockets must be active participants in the target room. Cross-room signaling and chat emissions are rejected.
 3. **Payload Validation**: Input sizes, strings, and types are validated; signaling messages are capped at 64KB; chat messages are capped at 1000 characters.
 4. **Authorization**: Host-exclusive actions (`host-mute-user`, `host-kick-user`, `end-meeting-all`) are verified server-side via `room.hostSocketId === socket.id`.
-5. **State Transition**: State updates (media muting, participant eviction, room destruction) update `roomState` and notify room peers.
+5. **State Transition**: State updates (media muting, participant eviction, room destruction) update `roomState` and notify room peers. Rate-limit tracking maps are automatically purged upon socket disconnect.
 
 ### 3. Password-Reset Production Boundary Case Study
 - **Cryptographic Token Hashing**: Verification codes are generated via `crypto.randomInt(100000, 1000000)` and stored exclusively as a **SHA-256 hash** (`crypto.createHash("sha256")`).
-- **TTL & Rate Limiting**: Reset codes expire strictly after **15 minutes** and enforce a maximum limit of **5 verification attempts** before irreversible invalidation.
-- **Single-Use Invalidation**: The token is immediately destroyed upon successful password change.
+- **TTL & Rate Limiting**: Reset codes expire strictly after **15 minutes** and enforce a maximum limit of **5 verification attempts** before irreversible invalidation. An unreferenced timer automatically purges expired in-memory records.
+- **Single-Use Invalidation**: The token is immediately destroyed upon successful password change and `tokenVersion` is incremented.
 - **Production vs. Development Boundary**:
   - **Production (`NODE_ENV=production`)**: Verification codes are **never** exposed in API responses. In enterprise production, an external transactional mailer (e.g., Resend, AWS SES) delivers the code out-of-band to the user's verified inbox.
   - **Local Development / Testing**: When `NODE_ENV !== "production"` and no SMTP server is configured, the code is included in the mock response payload exclusively to facilitate automated integration and UI testing without external mail dependencies.
+
+### 4. HTTP Headers & Fail-Closed Production CORS
+- **Strict-Transport-Security & CSP**: Hardened security headers including nosniff, frame protection, and a tailored `Content-Security-Policy` for React SPA, WebSockets (`ws:`, `wss:`), WebRTC STUN/TURN (`media-src`, `mediastream:`), Google Fonts, and MUI.
+- **Fail-Closed CORS**: Startup validation ensures production deployments refuse wildcard origins (`*`) when credentials are enabled.
 
 ---
 
@@ -229,9 +234,9 @@ npm run test:e2e
 ```
 
 ### 1. Backend Security & Authorization Test Matrix (`backend/tests/`)
-- ✅ **Authentication (`auth.test.js`)**: Signup, duplicate handling, login, wrong password rejection, expired JWT handling, tampered JWT detection, password reset SHA-256 hashing, rate limiting, and single-use invalidation.
-- ✅ **Meetings & IDOR Invariants (`meetings.test.js`)**: Room code generation, scheduled meeting creation, listing, atomic deletion, IDOR isolation across history, profile updates, and password changes.
-- ✅ **Socket.IO Real-Time Lifecycle (`socket.test.js`)**: JWT handshake authentication, identity spoofing prevention, room join/leave, host assignment, host succession upon disconnect, host mute/kick/end-meeting authorization, and empty room memory purge.
+- ✅ **Authentication (`auth.test.js`)**: Signup, duplicate handling, login, wrong password rejection, expired JWT handling, tampered JWT detection, password reset SHA-256 hashing, rate limiting, **token version session revocation**, **safe profile DTO verification (no reset token leakage)**, and **anti-enumeration generic responses**.
+- ✅ **Meetings & IDOR Invariants (`meetings.test.js`)**: Room code generation, scheduled meeting creation (`scheduled_date` & `scheduled_time`), listing, atomic deletion, IDOR isolation across history, profile updates, and password changes.
+- ✅ **Socket.IO Real-Time Lifecycle (`socket.test.js`)**: JWT handshake authentication, identity spoofing prevention, room join/leave, host assignment, host succession upon disconnect, host mute/kick/end-meeting authorization, mesh capacity (6 users), and **rate-limit map cleanup on disconnect**.
 - ✅ **Chat Anti-Abuse (`chat.test.js`)**: Sliding-window rate limiting (5 msg/3s), XSS sanitization, 1000-character payload limits, and room isolation.
 - ✅ **WebRTC Signaling Boundary (`webrtc.test.js`)**: Intra-room SDP/ICE candidate relaying and cross-room signaling rejection.
 
