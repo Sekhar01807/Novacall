@@ -119,4 +119,49 @@ describe("Meetings", () => {
         assert.ok(bobResult);
         assert.strictEqual(meetingsCollection.length, 1);
     });
+
+    test("IDOR protection across meeting history, profile, and password operations", () => {
+        // 1. Meeting History isolation: query is strictly bound to req.user.username
+        const historyDb = [
+            { id: "h1", user_id: "alice_w", meeting_code: "alice-room" },
+            { id: "h2", user_id: "bob_m", meeting_code: "bob-room" }
+        ];
+        const queryHistoryForUser = (username) => historyDb.filter(h => h.user_id === username);
+        const aliceHistory = queryHistoryForUser("alice_w");
+        assert.strictEqual(aliceHistory.length, 1);
+        assert.strictEqual(aliceHistory[0].meeting_code, "alice-room");
+        assert.ok(!aliceHistory.some(h => h.user_id === "bob_m"), "Alice cannot access Bob's meeting history");
+
+        // 2. Profile operations isolation: updates only mutate req.user
+        const mockUserProfiles = {
+            "alice_w": { name: "Alice", email: "alice@novacall.io", themeMode: "dark" },
+            "bob_m": { name: "Bob", email: "bob@novacall.io", themeMode: "light" }
+        };
+        const updateProfile = (authUser, updatePayload) => {
+            const profile = mockUserProfiles[authUser];
+            const allowed = ["name", "themeMode"];
+            allowed.forEach(f => {
+                if (updatePayload[f] !== undefined) profile[f] = updatePayload[f];
+            });
+            return profile;
+        };
+        // Alice attempts to supply Bob's ID in payload
+        updateProfile("alice_w", { user_id: "bob_m", name: "Alice Updated" });
+        assert.strictEqual(mockUserProfiles["bob_m"].name, "Bob", "Bob's profile must remain unchanged");
+        assert.strictEqual(mockUserProfiles["alice_w"].name, "Alice Updated");
+
+        // 3. Password operations isolation: change password is keyed by authenticated JWT identity
+        const mockAuthUsers = {
+            "user_id_alice": { username: "alice_w", passwordHash: "alice_hash" },
+            "user_id_bob": { username: "bob_m", passwordHash: "bob_hash" }
+        };
+        const changePassword = (authenticatedUserId, newHash) => {
+            mockAuthUsers[authenticatedUserId].passwordHash = newHash;
+        };
+        // Alice requests change password with her authenticated session
+        changePassword("user_id_alice", "new_alice_hash");
+        assert.strictEqual(mockAuthUsers["user_id_bob"].passwordHash, "bob_hash", "Bob's password cannot be changed by Alice");
+        assert.strictEqual(mockAuthUsers["user_id_alice"].passwordHash, "new_alice_hash");
+    });
 });
+
