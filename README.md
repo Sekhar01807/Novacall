@@ -1,11 +1,11 @@
 # NovaCall
-### Real-Time Video Conferencing Platform
+### Real-Time Multi-Party Video Conferencing & Signaling Platform
 
-[🚀 Live Demo](https://novacall-two.vercel.app/) · [💻 GitHub](https://github.com/Sekhar01807/Novacall) · [📖 Swagger API Docs](http://localhost:8000/api/docs)
+[🚀 Live Demo](https://novacall-two.vercel.app/) · [💻 GitHub Repository](https://github.com/Sekhar01807/Novacall) · [📖 Swagger API Docs](http://localhost:8000/api/docs) · [⚡ Socket Protocol Guide](backend/docs/SOCKET_EVENTS.md)
 
 ![NovaCall Video Meeting Room](./screenshots/meeting_room.png)
 
-**React** · **Node.js** · **Socket.IO** · **WebRTC** · **MongoDB**
+**React 19** · **Node.js 22 LTS** · **Express.js 5** · **Socket.IO 4.8** · **WebRTC** · **MongoDB Atlas** · **Docker**
 
 ---
 
@@ -13,7 +13,7 @@
 
 NovaCall was engineered to explore the technical frontiers of real-time multi-party audio/video conferencing, bi-directional event signaling, and zero-trust session security.
 
-Rather than relying on closed third-party video SDKs, NovaCall implements a custom full-mesh WebRTC engine paired with a modular Socket.IO signaling layer. The architecture features automatic STUN/TURN NAT traversal, server-authoritative role security (host designation, remote mute, participant expulsion, and meeting termination), stateless JWT authentication, and IDOR-protected REST APIs. The platform is fully containerized with Docker and verified via an automated CI pipeline with end-to-end Playwright testing.
+Rather than relying on proprietary, closed third-party video SDKs, NovaCall implements a **custom full-mesh WebRTC engine** paired with a **modular Socket.IO signaling layer**. The architecture features automatic STUN/TURN NAT traversal, server-authoritative role security (host designation, remote mute, participant expulsion, and meeting termination), stateless JWT authentication with instant session revocation (`tokenVersion`), atomic IDOR-protected REST APIs, and correlation ID tracking (`X-Request-Id`). The platform is fully containerized with Docker and verified via an automated CI pipeline with end-to-end Playwright testing.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-007acc.svg)](LICENSE)
 [![Frontend: React 19](https://img.shields.io/badge/Frontend-React%2019-007acc.svg)](https://reactjs.org/)
@@ -29,29 +29,31 @@ Rather than relying on closed third-party video SDKs, NovaCall implements a cust
 
 ## ✨ Flagship Capabilities
 
-### 🎥 High-Fidelity Video Conferencing
-- **Custom WebRTC Engine**: Multi-party audio/video streams with dynamic peer connection pooling and bandwidth optimization.
-- **Adaptive NAT Traversal**: Dual Google STUN servers for direct P2P connections with automatic OpenRelay TURN fallback for restrictive symmetric NATs.
-- **Real-Time Stage Controls**: Toggle microphone/camera, native screen sharing (`getDisplayMedia`), and dynamic participant video grid.
-- **Connection Health Monitor**: In-meeting round-trip time (RTT) calculation and signal quality indicators.
+### 🎥 High-Fidelity Video Conferencing & Adaptive NAT Traversal
+- **Custom WebRTC Engine**: Multi-party audio/video streams with dynamic peer connection pooling, track lifecycle management, and bandwidth optimization.
+- **Adaptive NAT Traversal**: Dual Google STUN servers for direct P2P connections with automatic OpenRelay TURN fallback for restrictive symmetric NATs and enterprise firewalls.
+- **Real-Time Stage Controls**: Toggle microphone/camera, native screen sharing (`getDisplayMedia`), and dynamic responsive participant video grid.
+- **Connection Health Monitor**: In-meeting round-trip time (RTT) calculation, jitter estimation, and live signal quality indicators.
 
 ### 👥 Server-Authoritative Meeting Moderation
 - **Automatic Host Designation**: First participant to enter an active room is assigned authoritative Host privileges.
-- **Host Moderation Tools**: Remote participant microphone muting, participant removal/expulsion, and global meeting termination.
-- **Dynamic Host Succession**: Automatic promotion of the next longest-standing participant when the current host leaves.
+- **Host Moderation Tools**: Remote participant microphone muting (`host-mute-user`), participant expulsion (`host-kick-user`), and global meeting termination (`end-meeting-all`).
+- **Dynamic Host Succession**: Automatic promotion of the next longest-standing participant when the current host leaves or disconnects.
 - **Capacity Enforcement**: Hard cap of 6 concurrent participants per room optimized for full-mesh P2P bandwidth.
 
-### 💬 Real-Time In-Meeting Chat
+### 💬 Real-Time In-Meeting Chat & Anti-Abuse
 - **Instant Message Broadcasting**: Socket.IO room channel distribution with client-side optimistic UI updates.
 - **Dual-Layer XSS Protection**: Server-side HTML entity escaping (`sanitizeHTML`), hard 1000-character length truncation, and contextual React JSX string encoding on the frontend (no `dangerouslySetInnerHTML`).
-- **Sliding-Window Rate Limiting**: Anti-flood protection (max 5 messages / 3-second sliding window) per socket connection.
+- **Sliding-Window Rate Limiting**: Anti-flood protection (max 5 messages / 3-second sliding window) per socket connection with automatic memory cleanup on disconnect.
 - **History Replay**: Automatic synchronization of prior in-meeting chat history to newly joined participants.
 
 ### 🔐 Zero-Trust Authentication & IDOR Protection
 - **Stateless JWT Sessions**: HMAC-SHA256 access tokens verified across both REST middleware and Socket.IO handshakes.
-- **Cryptographic Password Hashing**: Passwords secured using bcrypt with 10 salt rounds.
-- **Centralized Schema Validation**: Dedicated validation module (`validators.js`) enforcing strict email formats, strong password complexity (8+ chars, uppercase, numeric), and sanitized payloads across all endpoints.
-- **Strict IDOR Invariants**: Multi-tenant resource isolation ensuring users can never access or modify another user's scheduled meetings, history, profile, or password.
+- **Instant Session Revocation (`tokenVersion`)**: Atomic incrementing of user `tokenVersion` instantly invalidates all existing active tokens across all devices upon password reset or `signOutAllDevices`.
+- **Safe Profile DTO Protection**: Whitelisted public profile DTO (`buildUserProfileDTO`), strictly preventing leakage of `resetPasswordToken`, `resetPasswordExpires`, `resetPasswordAttempts`, `tokenVersion`, or credentials.
+- **Cryptographic Password Reset**: Verification codes are generated securely, stored exclusively as SHA-256 hashes with 15-minute TTL, max 5 verification attempts, and constant-time generic responses preventing username/email enumeration.
+- **Strict IDOR Invariants**: Multi-tenant resource isolation ensuring users can never access, query, or delete another user's scheduled meetings, history, profile, or credentials.
+- **Standardized Response Protocol & Request Correlation**: Centralized `formatSuccessResponse` / `formatErrorResponse` format with structured `ERROR_CODES`, correlation IDs (`X-Request-Id`, `X-Correlation-Id`), and API versioning (`X-API-Version`).
 
 ---
 
@@ -59,12 +61,12 @@ Rather than relying on closed third-party video SDKs, NovaCall implements a cust
 
 | Layer | Technologies | Purpose |
 | :--- | :--- | :--- |
-| **Frontend** | React 19, Vite, Material UI (MUI v7), Axios, WebRTC API | Single-Page Application (SPA) & Media Pipeline |
-| **Backend** | Node.js 22 LTS, Express.js 5, Socket.IO 4.8 | RESTful API & Real-Time Signaling Server |
+| **Frontend** | React 19, Vite, Material UI (MUI v7), Axios, WebRTC API | Single-Page Application (SPA), Design System & Real-Time Media Pipeline |
+| **Backend** | Node.js 22 LTS, Express.js 5, Socket.IO 4.8 | RESTful API & Real-Time WebSocket Signaling Server |
 | **Database** | MongoDB Atlas, Mongoose 9 | Multi-tenant schema storage with compound indexes |
-| **Security** | jsonwebtoken, bcrypt, crypto (SHA-256), CORS | Authentication, authorization, and rate limiting |
-| **Infrastructure** | Docker, Docker Compose, Nginx, Vercel | Containerized orchestration and cloud edge hosting |
-| **Testing** | Node.js Test Runner (`node:test`), Playwright E2E | Unit, security, socket, and end-to-end test suites |
+| **Security** | jsonwebtoken, bcrypt, crypto (SHA-256), CORS, Hardened CSP | Zero-trust authentication, authorization, token revocation & rate limiting |
+| **Infrastructure** | Docker, Docker Compose, Nginx, Vercel | Containerized multi-service orchestration and cloud edge hosting |
+| **Testing** | Node.js Test Runner (`node:test`), Playwright E2E | Unit, security, socket lifecycle, and end-to-end browser test suites |
 
 ---
 
@@ -74,10 +76,10 @@ Rather than relying on closed third-party video SDKs, NovaCall implements a cust
 
 ```mermaid
 graph TD
-    Client["📱 React 19 Client (Vite + MUI)"]
-    Client -->|"REST API v1 (JWT + Request ID)"| Express["⚙️ Express.js Backend"]
-    Client -->|"WebSocket Signaling"| Socket["⚡ Socket.IO Realtime Server"]
-    Express -->|"Indexed Schemas"| Mongo[("🗄️ MongoDB Atlas")]
+    Client["📱 React 19 Client (Vite + MUI v7)"]
+    Client -->|"REST API v1 (JWT + Request ID)"| Express["⚙️ Express.js 5 Backend"]
+    Client -->|"WebSocket Signaling (JWT Handshake)"| Socket["⚡ Socket.IO Realtime Server"]
+    Express -->|"Indexed Schemas"| Mongo[("🗄️ MongoDB Atlas (Mongoose 9)")]
     Socket -->|"SDP & ICE Signaling"| WebRTC["🎥 WebRTC Engine"]
     WebRTC -->|"Direct P2P Traversal"| STUN["🌐 STUN Servers (Google)"]
     WebRTC -.->|"Relay Fallback"| TURN["🔄 TURN Servers (OpenRelay)"]
@@ -103,25 +105,31 @@ NovaCall establishes direct peer-to-peer media streaming using an interactive IC
 ```mermaid
 sequenceDiagram
     autonumber
-    actor A as Participant A
+    actor A as Participant A (Host)
     participant S as Socket.IO Signaling Server
-    actor B as Participant B
+    actor B as Participant B (Peer)
 
-    A->>S: join-call (Room ID, Username)
-    B->>S: join-call (Room ID, Username)
-    Note over S: Room Presence & Host Designation
+    A->>S: join-call (Room ID, Display Name)
+    Note over S: Room State Init & Host Assignment
+    S-->>A: host-status({ isHost: true })
 
-    A->>S: Send Signal: SDP Offer
-    S->>B: Relay SDP Offer
-    B->>S: Send Signal: SDP Answer
-    S->>A: Relay SDP Answer
+    B->>S: join-call (Room ID, Display Name)
+    S-->>B: host-status({ isHost: false })
+    S->>A: user-joined (Participant B info)
+    S->>B: user-joined (Participant list)
 
-    A->>S: Send Signal: ICE Candidates
-    S->>B: Relay ICE Candidates
-    B->>S: Send Signal: ICE Candidates
-    S->>A: Relay ICE Candidates
+    Note over A,B: Full-Mesh WebRTC Signaling Phase
+    A->>S: signal: SDP Offer (target: B)
+    S->>B: signal: SDP Offer (from: A)
+    B->>S: signal: SDP Answer (target: A)
+    S->>A: signal: SDP Answer (from: B)
 
-    Note over A,B: Peer Connection Established (STUN Direct P2P or TURN Relay)
+    A->>S: signal: ICE Candidates (target: B)
+    S->>B: signal: ICE Candidates (from: A)
+    B->>S: signal: ICE Candidates (target: A)
+    S->>A: signal: ICE Candidates (from: B)
+
+    Note over A,B: Peer Connection Established (Direct P2P or TURN Relay)
     A<<-->>B: Real-Time Audio / Video / Screen Share Streaming
 ```
 
@@ -138,25 +146,26 @@ Novacall/
 │   ├── src/
 │   │   ├── controllers/          # Modularized REST controllers
 │   │   │   ├── user.controller.js          # Authentication (login, register) & root re-exports
-│   │   │   ├── profile.controller.js       # Profile CRUD, DTO builder & session revocation
-│   │   │   ├── passwordReset.controller.js # Cryptographic token generation & verification
-│   │   │   └── meetingHistory.controller.js# Activity pagination, schedule CRUD & IDOR queries
-│   │   ├── docs/                 # OpenAPI 3.0 specification & Swagger UI
-│   │   ├── middleware/           # auth.middleware.js (Bearer token verification)
+│   │   │   ├── profile.controller.js       # Profile CRUD, safe DTO builder & session revocation
+│   │   │   ├── passwordReset.controller.js # Cryptographic SHA-256 token generation & reset verification
+│   │   │   ├── meetingHistory.controller.js# Activity pagination, schedule CRUD & atomic IDOR queries
+│   │   │   └── socketManager.js            # Legacy socket bridge / initialization wrapper
+│   │   ├── docs/                 # OpenAPI 3.0 specification & Swagger UI (swaggerSpec.js)
+│   │   ├── middleware/           # auth.middleware.js, requestId.middleware.js
 │   │   ├── models/               # UserModel.js, meetingModel.js, scheduledMeetingModel.js
 │   │   ├── routes/               # UsersRoutes.js
 │   │   ├── sockets/              # Modular Socket.IO architecture
-│   │   │   ├── middleware/       # socketAuth.middleware.js (Handshake JWT auth), socketValidator.js
 │   │   │   ├── handlers/         # room.handler.js, signaling.handler.js, chat.handler.js, media.handler.js, moderation.handler.js
+│   │   │   ├── middleware/       # socketAuth.middleware.js (Handshake JWT auth), socketValidator.js
 │   │   │   ├── roomState.js      # In-memory room, host, participant, and message store
-│   │   │   └── index.js          # Socket initialization & event routing
-│   │   ├── utils/                # jwt.js, logger.js, roomCodeGenerator.js, errorCodes.js, validators.js
-│   │   └── app.js                # Server entry point, hardened CSP & rate limiter
+│   │   │   └── index.js          # Socket server initialization & modular routing
+│   │   ├── utils/                # errorCodes.js, jwt.js, logger.js, roomCodeGenerator.js, validators.js
+│   │   └── app.js                # Server entry point, hardened CSP, rate limiter & CORS
 │   ├── tests/
-│   │   ├── auth.test.js          # Authentication, token tampering, and reset hash tests
-│   │   ├── meetings.test.js      # Scheduled meetings & atomic IDOR ownership tests
-│   │   ├── socket.test.js        # Socket room lifecycle, auth & host moderation tests
-│   │   ├── chat.test.js          # Chat rate limiting & XSS sanitization tests
+│   │   ├── auth.test.js          # Authentication, token tampering, safe DTO & tokenVersion revocation tests
+│   │   ├── meetings.test.js      # Scheduled meetings, compound indexes & atomic IDOR ownership tests
+│   │   ├── socket.test.js        # Socket room lifecycle, auth, capacity cap & host moderation tests
+│   │   ├── chat.test.js          # Chat rate limiting, XSS sanitization & room isolation tests
 │   │   └── webrtc.test.js        # WebRTC signaling boundary isolation tests
 │   ├── Dockerfile                # Node 22 Alpine production container
 │   ├── package.json
@@ -166,13 +175,15 @@ Novacall/
 │   │   ├── contexts/             # AuthContext.jsx
 │   │   ├── pages/                # Landing, Auth, Home, History, Profile, 404, VideoMeet
 │   │   │   └── videoMeet/        # Modularized meeting architecture
-│   │   │       ├── components/   # LobbyView, MeetingModals, MeetingControls, VideoGrid, ChatPanel, etc.
+│   │   │       ├── components/   # LobbyView, MeetingControls, VideoGrid, VideoTile, ChatPanel, ParticipantList, ConnectionQualityIndicator, MeetingModals, MeetingHeader
 │   │   │       ├── hooks/        # useWebRTCConnection.js, useMediaDevices.js
 │   │   │       ├── services/     # socketService.js, meetingService.js
-│   │   │       └── VideoMeet.jsx # Clean high-level orchestrator (<220 lines)
-│   │   ├── styles/               # CSS modules & themes
+│   │   │       └── VideoMeet.jsx # Clean high-level orchestrator component
+│   │   ├── styles/               # CSS modules & theme styling
 │   │   ├── utils/                # withAuth.jsx
-│   │   ├── App.jsx               # App routing
+│   │   ├── App.css               # Clean professional light theme styling
+│   │   ├── App.jsx               # Application routing & providers
+│   │   ├── index.css             # Design tokens, typography & CSS variables
 │   │   └── index.jsx
 │   ├── Dockerfile                # Multi-stage Node 22 + Nginx SPA container
 │   ├── nginx.conf                # Nginx SPA rewrite routing
@@ -199,10 +210,10 @@ Novacall/
 NovaCall enforces strict security boundaries across both HTTP and WebSocket interfaces:
 
 ### 1. Invariable IDOR (Insecure Direct Object Reference) Protection
-- **Scheduled Meetings**: Creation, retrieval, and deletion queries are strictly scoped to `req.user.username`. `createScheduledMeeting` parses and persists schema-compliant `scheduled_date` (Date) and `scheduled_time`. `DELETE /delete_scheduled_meeting/:id` executes an atomic `findOneAndDelete({ _id: id, user_id: req.user.username })` query. If the resource exists under a different account, the server rejects the operation with `403 FORBIDDEN`.
+- **Scheduled Meetings**: Creation, retrieval, and deletion queries are strictly scoped to `req.user.username`. `createScheduledMeeting` parses and persists schema-compliant `scheduled_date` (Date) and `scheduled_time`. `DELETE /delete_scheduled_meeting/:id` executes an atomic `findOneAndDelete({ _id: id, user_id: req.user.username })` query. If the resource exists under a different account, the server rejects the operation with `403 FORBIDDEN` (differentiated from `404 NOT_FOUND`).
 - **Meeting Activity History**: History writes and paginated history queries are unconditionally bound to the authenticated `req.user.username`.
 - **User Profile DTO Protection**: `GET /get_profile` and `POST /update_profile` return an explicit public DTO (`buildUserProfileDTO`), strictly preventing leakage of `resetPasswordToken`, `resetPasswordExpires`, `resetPasswordAttempts`, `tokenVersion`, or credentials.
-- **Atomic Account Deletion**: Executes within a MongoDB transaction session with fallback to ensure clean cascading deletion.
+- **Atomic Account Deletion**: Executes within a MongoDB transaction session with fallback to ensure clean cascading deletion of user history, scheduled meetings, and credentials.
 - **Stateless Session Revocation (`tokenVersion`)**: Adding a `tokenVersion` counter to user records enables instantaneous revocation of all active JWT sessions whenever a user triggers `signOutAllDevices`, changes their password, or resets their credentials.
 - **Anti-Enumeration Generic Responses**: Generic responses on `/login` (`AUTH_INVALID_CREDENTIALS`) and `/forgot_password` ensure malicious actors cannot enumerate registered usernames or emails.
 
@@ -218,7 +229,7 @@ $$\text{Handshake Authentication} \longrightarrow \text{Room Membership} \longri
 
 ### 3. Password-Reset Production Boundary Case Study
 - **Cryptographic Token Hashing**: Verification codes are generated via `crypto.randomInt(100000, 1000000)` and stored exclusively as a **SHA-256 hash** (`crypto.createHash("sha256")`).
-- **TTL & Rate Limiting**: Reset codes expire strictly after **15 minutes** and enforce a maximum limit of **5 verification attempts** before irreversible invalidation. An unreferenced timer automatically purges expired in-memory records.
+- **TTL & Rate Limiting**: Reset codes expire strictly after **15 minutes** and enforce a maximum limit of **5 verification attempts** before irreversible invalidation. An unreferenced timer automatically purges expired in-memory records every 10 minutes.
 - **Single-Use Invalidation**: The token is immediately destroyed upon successful password change and `tokenVersion` is incremented.
 - **Production vs. Development Boundary**:
   - **Production (`NODE_ENV=production`)**: Verification codes are **never** exposed in API responses. In enterprise production, an external transactional mailer (e.g., Resend, AWS SES) delivers the code out-of-band to the user's verified inbox.
@@ -231,16 +242,47 @@ $$\text{Handshake Authentication} \longrightarrow \text{Room Membership} \longri
 
 ---
 
+## 📡 REST API Reference
+
+| Endpoint | Method | Auth Required | Description |
+| :--- | :---: | :---: | :--- |
+| **Authentication & Password Recovery** | | | |
+| `/api/v1/users/register` | `POST` | No | Register a new user account with email, username, and password |
+| `/api/v1/users/login` | `POST` | No | Authenticate user and receive HMAC-SHA256 JWT access token |
+| `/api/v1/users/forgot_password` | `POST` | No | Request 6-digit SHA-256 hashed password reset verification code |
+| `/api/v1/users/reset_password` | `POST` | No | Verify reset code and update user password |
+| **User Profile & Security** | | | |
+| `/api/v1/users/get_profile` | `GET` | Yes | Retrieve authenticated user profile (safe DTO) |
+| `/api/v1/users/update_profile` | `POST` | Yes | Update user preferences, status, and theme settings |
+| `/api/v1/users/change_password` | `POST` | Yes | Change user password and invalidate existing sessions |
+| `/api/v1/users/signout_all` | `POST` | Yes | Invalidate all active JWT tokens by incrementing `tokenVersion` |
+| `/api/v1/users/delete_account` | `POST` | Yes | Permanently delete account and all associated meetings/history |
+| **Meeting Management & History** | | | |
+| `/api/v1/users/add_to_activity` | `POST` | Yes | Record a joined meeting code into user's activity log |
+| `/api/v1/users/get_all_activity` | `GET` | Yes | Paginated meeting history with optional regex search query |
+| `/api/v1/users/create_scheduled_meeting` | `POST` | Yes | Schedule an upcoming meeting with date, time, duration & zone |
+| `/api/v1/users/get_upcoming_meetings` | `GET` | Yes | Fetch all scheduled meetings for the authenticated user |
+| `/api/v1/users/delete_scheduled_meeting/:id` | `DELETE` | Yes | Atomic IDOR-protected cancellation of a scheduled meeting |
+| **System & Monitoring** | | | |
+| `/health` | `GET` | No | System health check (database connection status, uptime, timestamp) |
+| `/api/docs` | `GET` | No | Interactive Swagger UI API explorer |
+| `/api/openapi.json` | `GET` | No | OpenAPI 3.0 JSON specification |
+
+---
+
 ## 🧪 Automated Testing Suites
 
 NovaCall features comprehensive automated test suites spanning unit, security, socket, and end-to-end workflows:
 
 ```bash
-# Run backend unit, security, and socket tests
+# Run all backend unit, security, and socket tests
 npm run test:backend
 
 # Run complete Playwright end-to-end test suite
 npm run test:e2e
+
+# Run Playwright E2E tests with interactive UI mode
+npm run test:e2e:ui
 ```
 
 ### 1. Backend Security & Authorization Test Matrix (`backend/tests/`)
@@ -343,7 +385,7 @@ The backend exposes a health endpoint for automated container orchestration, loa
   "status": "ok",
   "uptime": 342,
   "database": "connected",
-  "timestamp": "2026-08-18T12:00:00.000Z"
+  "timestamp": "2026-08-19T12:00:00.000Z"
 }
 ```
 
@@ -354,11 +396,12 @@ The backend exposes a health endpoint for automated container orchestration, loa
 ### Backend
 | Variable | Description |
 | :--- | :--- |
-| `PORT` | Backend server port (e.g. `8000`) |
+| `PORT` | Backend server port (default: `8000`) |
 | `ATLASDB_URL` | MongoDB Atlas connection string |
 | `JWT_SECRET` | Secret key used for HMAC-SHA256 JWT signing & verification |
 | `FRONTEND_URL` | Allowed CORS origin(s) (e.g. `https://novacall-two.vercel.app,http://localhost:5173`) |
 | `MAX_ROOM_CAPACITY` | Maximum participants per room (default: `6`) |
+| `NODE_ENV` | Environment mode (`development` \| `production` \| `test`) |
 
 ### Frontend
 | Variable | Description |
@@ -397,6 +440,7 @@ The backend exposes a health endpoint for automated container orchestration, loa
 - [x] **Hardened Security & Tightened CSP**: Removal of permissive script `unsafe-inline` and wildcard `connect-src` directives; documented single-instance in-memory rate limiting.
 - [x] **IDOR-Protected Resource Layer**: Atomic query ownership verification across all user data endpoints.
 - [x] **Flagship Playwright E2E Suite**: End-to-end lifecycle verification from user registration to meeting moderation.
+- [x] **Standardized Error Handling & Response Contracts**: Centralized `formatSuccessResponse` / `formatErrorResponse`, structured `ERROR_CODES`, and request correlation IDs (`X-Request-Id`).
 - [ ] **SFU Media Gateway**: Transitioning to mediasoup / Pion for large enterprise conference routing.
 - [ ] **Distributed Redis Pub/Sub**: Integrating `@socket.io/redis-adapter` for multi-instance cluster deployments.
 - [ ] **Live SMTP Mailer**: Integrating Resend / AWS SES with cryptographically signed magic links.
