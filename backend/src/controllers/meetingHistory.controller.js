@@ -5,6 +5,7 @@ import { ERROR_CODES, formatErrorResponse, formatSuccessResponse } from "../util
 import { logger } from "../utils/logger.js";
 import { generateSecureRoomCode } from "../utils/roomCodeGenerator.js";
 import { normalizeRoomCode } from "../sockets/roomState.js";
+import { validateScheduledMeeting, validateMeetingCode } from "../utils/validators.js";
 
 /**
  * Get User Meeting History with Pagination & Search Support
@@ -52,18 +53,20 @@ export const getUserHistory = async (req, res) => {
 };
 
 export const addToHistory = async (req, res) => {
-    const { meeting_code } = req.body;
-    if (!meeting_code || !meeting_code.trim()) {
+    const validation = validateMeetingCode(req.body);
+    if (!validation.isValid) {
         return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Meeting code required", ERROR_CODES.VALIDATION_ERROR, req.id)
+            formatErrorResponse(validation.message, ERROR_CODES.VALIDATION_ERROR, req.id)
         );
     }
+
+    const { meeting_code } = validation.data;
 
     try {
         const user = req.user;
         const newMeeting = new Meeting({
             user_id: user.username,
-            meeting_code: meeting_code.trim()
+            meeting_code
         });
 
         await newMeeting.save();
@@ -79,31 +82,21 @@ export const addToHistory = async (req, res) => {
 };
 
 export const createScheduledMeeting = async (req, res) => {
-    const title = req.body.title ? String(req.body.title).trim() : "";
-    const rawDate = req.body.scheduled_date || req.body.date;
-    const rawTime = req.body.scheduled_time || req.body.time || "10:00 AM";
-    const duration = req.body.duration ? String(req.body.duration).trim().substring(0, 30) : "30 mins";
-    const time_zone = req.body.time_zone ? String(req.body.time_zone).trim().substring(0, 100) : "(GMT+05:30) India Standard Time";
-    const description = req.body.description ? String(req.body.description).trim().substring(0, 500) : "";
-
-    if (!title || !rawDate) {
+    const validation = validateScheduledMeeting(req.body);
+    if (!validation.isValid) {
         return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Meeting title and scheduled date are required", ERROR_CODES.VALIDATION_ERROR, req.id)
+            formatErrorResponse(validation.message, ERROR_CODES.VALIDATION_ERROR, req.id)
         );
     }
 
-    if (title.length > 120) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Meeting title cannot exceed 120 characters", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
-
-    const scheduledDateObj = new Date(rawDate);
-    if (isNaN(scheduledDateObj.getTime())) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Invalid scheduled date format", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
+    const {
+        title,
+        scheduled_date,
+        scheduled_time,
+        duration,
+        time_zone,
+        description
+    } = validation.data;
 
     // Room code: normalize or generate secure room code
     let meeting_code = req.body.meeting_code ? normalizeRoomCode(req.body.meeting_code) : "";
@@ -115,9 +108,9 @@ export const createScheduledMeeting = async (req, res) => {
         const user = req.user;
         const newMeeting = new ScheduledMeeting({
             user_id: user.username,
-            title: title,
-            scheduled_date: scheduledDateObj,
-            scheduled_time: String(rawTime).trim().substring(0, 30),
+            title,
+            scheduled_date,
+            scheduled_time,
             duration,
             time_zone,
             description,

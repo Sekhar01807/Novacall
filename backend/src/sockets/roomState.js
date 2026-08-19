@@ -1,6 +1,14 @@
 /**
  * In-Memory Room State Manager
- * Handles active rooms, participant metadata, host delegation, media state, and chat history.
+ * 
+ * Architecture & Deployment Trade-offs:
+ * - Current Implementation: Process-local in-memory Map structure for active meeting rooms,
+ *   participants, host delegation, media states, and ephemeral in-meeting chat replay.
+ * - Performance Benefit: Sub-millisecond synchronous room lookups and state mutations without database I/O.
+ * - Single-Instance Limitation: State is bound to the running Node.js process. Restarting the server
+ *   mid-meeting drops active room presence (requiring WebRTC reconnect), and horizontal multi-instance
+ *   scaling requires migrating this layer to a distributed Redis store (e.g., using @socket.io/redis-adapter
+ *   and Redis JSON / Hashes for cluster-wide room sync).
  */
 
 // Key: roomCode => Room Object

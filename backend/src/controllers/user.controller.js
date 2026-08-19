@@ -4,6 +4,7 @@ import { User } from "../models/UserModel.js";
 import { signJWT } from "../utils/jwt.js";
 import { ERROR_CODES, formatErrorResponse, formatSuccessResponse } from "../utils/errorCodes.js";
 import { logger } from "../utils/logger.js";
+import { validateLogin, validateRegister } from "../utils/validators.js";
 
 // Re-export modular controllers for full backward compatibility
 export * from "./profile.controller.js";
@@ -37,22 +38,18 @@ import {
  * Authenticates user credentials and signs a stateless JWT session token.
  */
 const login = async (req, res) => {
-    const { username, password } = req.body;
+    const validation = validateLogin(req.body);
+    if (!validation.isValid) {
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse(validation.message, ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
+    }
 
-    if (!username || !username.trim()) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Email or username is required", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
-    if (!password || !password.trim()) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Password is required", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
+    const { username, password } = validation.data;
 
     try {
         const user = await User.findOne({
-            $or: [{ username: username.trim() }, { email: username.trim().toLowerCase() }]
+            $or: [{ username }, { email: username.toLowerCase() }]
         });
 
         // Generic authentication error message to prevent account enumeration
@@ -99,48 +96,18 @@ const login = async (req, res) => {
  * Validates input, hashes password with bcrypt, and creates user record.
  */
 const register = async (req, res) => {
-    const { name, email, username, password } = req.body;
+    const validation = validateRegister(req.body);
+    if (!validation.isValid) {
+        return res.status(httpStatus.BAD_REQUEST).json(
+            formatErrorResponse(validation.message, ERROR_CODES.VALIDATION_ERROR, req.id)
+        );
+    }
 
-    if (!name || !name.trim()) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Full name is required", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
-    if (!email || !email.trim()) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Email is required", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Please enter a valid email address", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
-    if (!username || !username.trim()) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Username is required", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
-    if (!password || password.length < 8) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Password must be at least 8 characters long", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
-    if (!/[A-Z]/.test(password)) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Password must contain at least one uppercase letter", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
-    if (!/[0-9]/.test(password)) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Password must contain at least one number", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
+    const { name, email, username, password } = validation.data;
 
     try {
         const existingUser = await User.findOne({
-            $or: [{ username: username.trim() }, { email: email.trim().toLowerCase() }]
+            $or: [{ username }, { email }]
         });
 
         if (existingUser) {
@@ -152,9 +119,9 @@ const register = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const newUser = new User({
-            name: name.trim(),
-            email: email.trim().toLowerCase(),
-            username: username.trim(),
+            name,
+            email,
+            username,
             password: hashedPassword,
             tokenVersion: 0
         });

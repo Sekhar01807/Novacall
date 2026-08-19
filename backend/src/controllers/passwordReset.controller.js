@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import { User } from "../models/UserModel.js";
 import { ERROR_CODES, formatErrorResponse, formatSuccessResponse } from "../utils/errorCodes.js";
 import { logger } from "../utils/logger.js";
+import { validateForgotPassword, validateResetPassword } from "../utils/validators.js";
 
 // In-memory hashed verification store: email => { hashedCode, expires, attempts }
 const resetCodes = new Map();
@@ -27,16 +28,17 @@ setInterval(() => {
  * - In production mode, code is NEVER returned in response.
  */
 export const forgotPassword = async (req, res) => {
-    const { email } = req.body;
-    if (!email || !email.trim()) {
+    const validation = validateForgotPassword(req.body);
+    if (!validation.isValid) {
         return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Email is required", ERROR_CODES.VALIDATION_ERROR, req.id)
+            formatErrorResponse(validation.message, ERROR_CODES.VALIDATION_ERROR, req.id)
         );
     }
 
+    const { email } = validation.data;
+
     try {
-        const normalizedEmail = email.trim().toLowerCase();
-        const user = await User.findOne({ email: normalizedEmail });
+        const user = await User.findOne({ email });
 
         const isProduction = process.env.NODE_ENV === "production";
         const genericMessage = isProduction
@@ -59,7 +61,7 @@ export const forgotPassword = async (req, res) => {
         const hashedCode = crypto.createHash("sha256").update(code).digest("hex");
         const expires = Date.now() + 15 * 60 * 1000; // 15 minutes
 
-        resetCodes.set(normalizedEmail, {
+        resetCodes.set(email, {
             hashedCode,
             expires,
             attempts: 0
@@ -71,7 +73,7 @@ export const forgotPassword = async (req, res) => {
         user.resetPasswordAttempts = 0;
         await user.save();
 
-        logger.info(`Password reset code generated and hashed for: ${normalizedEmail}`, { requestId: req.id });
+        logger.info(`Password reset code generated and hashed for: ${email}`, { requestId: req.id });
 
         const responsePayload = {
             success: true,
@@ -103,24 +105,19 @@ export const forgotPassword = async (req, res) => {
  * - Revokes all existing sessions via tokenVersion.
  */
 export const resetPasswordWithCode = async (req, res) => {
-    const { email, resetCode, newPassword } = req.body;
-    if (!email || !resetCode || !newPassword) {
+    const validation = validateResetPassword(req.body);
+    if (!validation.isValid) {
         return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Please provide email, reset code, and new password", ERROR_CODES.VALIDATION_ERROR, req.id)
+            formatErrorResponse(validation.message, ERROR_CODES.VALIDATION_ERROR, req.id)
         );
     }
 
-    if (newPassword.length < 8) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("New password must be at least 8 characters long", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
+    const { email, resetCode, newPassword } = validation.data;
 
     try {
-        const normalizedEmail = email.trim().toLowerCase();
-        let record = resetCodes.get(normalizedEmail);
+        let record = resetCodes.get(email);
 
-        const user = await User.findOne({ email: normalizedEmail });
+        const user = await User.findOne({ email });
         if (!user) {
             return res.status(httpStatus.BAD_REQUEST).json(
                 formatErrorResponse("Invalid verification code or expired request", ERROR_CODES.INVALID_CODE, req.id)
@@ -144,7 +141,7 @@ export const resetPasswordWithCode = async (req, res) => {
 
         // Check expiration
         if (Date.now() > record.expires) {
-            resetCodes.delete(normalizedEmail);
+            resetCodes.delete(email);
             user.resetPasswordToken = null;
             user.resetPasswordExpires = null;
             await user.save();
@@ -156,7 +153,7 @@ export const resetPasswordWithCode = async (req, res) => {
         // Rate limit attempts (Max 5 attempts)
         record.attempts = (record.attempts || 0) + 1;
         if (record.attempts > 5) {
-            resetCodes.delete(normalizedEmail);
+            resetCodes.delete(email);
             user.resetPasswordToken = null;
             user.resetPasswordExpires = null;
             user.resetPasswordAttempts = 0;
@@ -184,8 +181,8 @@ export const resetPasswordWithCode = async (req, res) => {
         user.resetPasswordAttempts = 0;
         await user.save();
 
-        resetCodes.delete(normalizedEmail);
-        logger.info(`Password successfully reset for: ${normalizedEmail}`, { requestId: req.id });
+        resetCodes.delete(email);
+        logger.info(`Password successfully reset for: ${email}`, { requestId: req.id });
 
         res.status(httpStatus.OK).json(
             formatSuccessResponse(null, "Password reset successful. You can now log in.", req.id)

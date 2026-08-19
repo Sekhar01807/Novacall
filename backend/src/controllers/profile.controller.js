@@ -6,6 +6,7 @@ import { Meeting } from "../models/meetingModel.js";
 import { ScheduledMeeting } from "../models/scheduledMeetingModel.js";
 import { ERROR_CODES, formatErrorResponse, formatSuccessResponse } from "../utils/errorCodes.js";
 import { logger } from "../utils/logger.js";
+import { validateChangePassword } from "../utils/validators.js";
 
 /**
  * Public User Profile DTO Builder
@@ -96,19 +97,14 @@ export const updateUserProfile = async (req, res) => {
 };
 
 export const changePassword = async (req, res) => {
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
+    const validation = validateChangePassword(req.body);
+    if (!validation.isValid) {
         return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("Please provide current and new password", ERROR_CODES.VALIDATION_ERROR, req.id)
+            formatErrorResponse(validation.message, ERROR_CODES.VALIDATION_ERROR, req.id)
         );
     }
 
-    if (newPassword.length < 8) {
-        return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse("New password must be at least 8 characters long", ERROR_CODES.VALIDATION_ERROR, req.id)
-        );
-    }
+    const { currentPassword, newPassword } = validation.data;
 
     try {
         const user = await User.findById(req.user._id);

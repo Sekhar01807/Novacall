@@ -43,13 +43,14 @@ Rather than relying on closed third-party video SDKs, NovaCall implements a cust
 
 ### 💬 Real-Time In-Meeting Chat
 - **Instant Message Broadcasting**: Socket.IO room channel distribution with client-side optimistic UI updates.
-- **XSS & Injection Protection**: HTML sanitization on all chat payloads.
-- **Sliding-Window Rate Limiting**: Anti-flood protection (max 5 messages / 3-second sliding window) and hard 1000-character payload cap.
+- **Dual-Layer XSS Protection**: Server-side HTML entity escaping (`sanitizeHTML`), hard 1000-character length truncation, and contextual React JSX string encoding on the frontend (no `dangerouslySetInnerHTML`).
+- **Sliding-Window Rate Limiting**: Anti-flood protection (max 5 messages / 3-second sliding window) per socket connection.
 - **History Replay**: Automatic synchronization of prior in-meeting chat history to newly joined participants.
 
 ### 🔐 Zero-Trust Authentication & IDOR Protection
 - **Stateless JWT Sessions**: HMAC-SHA256 access tokens verified across both REST middleware and Socket.IO handshakes.
 - **Cryptographic Password Hashing**: Passwords secured using bcrypt with 10 salt rounds.
+- **Centralized Schema Validation**: Dedicated validation module (`validators.js`) enforcing strict email formats, strong password complexity (8+ chars, uppercase, numeric), and sanitized payloads across all endpoints.
 - **Strict IDOR Invariants**: Multi-tenant resource isolation ensuring users can never access or modify another user's scheduled meetings, history, profile, or password.
 
 ---
@@ -149,7 +150,7 @@ Novacall/
 │   │   │   ├── handlers/         # room.handler.js, signaling.handler.js, chat.handler.js, media.handler.js, moderation.handler.js
 │   │   │   ├── roomState.js      # In-memory room, host, participant, and message store
 │   │   │   └── index.js          # Socket initialization & event routing
-│   │   ├── utils/                # jwt.js, logger.js, roomCodeGenerator.js, errorCodes.js
+│   │   ├── utils/                # jwt.js, logger.js, roomCodeGenerator.js, errorCodes.js, validators.js
 │   │   └── app.js                # Server entry point, hardened CSP & rate limiter
 │   ├── tests/
 │   │   ├── auth.test.js          # Authentication, token tampering, and reset hash tests
@@ -384,7 +385,7 @@ The backend exposes a health endpoint for automated container orchestration, loa
 ## 🚧 Current Limitations & Engineering Trade-offs
 
 1. **P2P Mesh Topology (Enforced Capacity = 6)**: Video and audio streams are exchanged directly peer-to-peer. A server-enforced **6-participant capacity limit** keeps client uplink bandwidth within standard broadband capacity ($N-1$ streams). For 20+ participant rooms, transitioning to a Selective Forwarding Unit (SFU) like mediasoup/Pion is recommended.
-2. **In-Memory Active Room State**: Room presence and rate-limiting stores reside in signaling server memory for zero latency. For multi-node horizontal scaling, a Redis pub/sub adapter (`@socket.io/redis-adapter`) is recommended.
+2. **In-Memory Active Room State & Single-Instance Lifecycle**: Active meeting room presence, participant metadata, and sliding-window rate limit counters reside entirely within the Node.js process memory (`roomState.js` `Map`). While this achieves sub-millisecond signaling latency without database round-trips, it represents a single-instance architecture: a server restart mid-meeting drops ephemeral room presence (requiring participants to re-join/reconnect), and horizontal multi-instance scaling requires migrating state to a shared Redis cluster (`@socket.io/redis-adapter` and Redis hash stores).
 3. **Password Reset Production Boundary**: In local/testing mode, verification codes are included in responses to facilitate automated test runners; in production, codes are dispatched via external SMTP.
 
 ---
