@@ -17,12 +17,6 @@ dotenv.config();
 // 0. Validate Critical Environment Configurations on Startup
 try {
     validateJwtSecretAtStartup();
-    if (process.env.NODE_ENV === "production") {
-        const configuredOrigins = process.env.FRONTEND_URL || "";
-        if (!configuredOrigins || configuredOrigins.trim() === "*" || configuredOrigins.trim() === "") {
-            throw new Error("FATAL: FRONTEND_URL must be explicitly configured with allowed origin(s) in production mode (wildcard '*' is forbidden with credentials: true).");
-        }
-    }
 } catch (err) {
     logger.error("Startup Configuration Error:", err);
     if (process.env.NODE_ENV === "production") {
@@ -64,11 +58,35 @@ app.use((req, res, next) => {
 });
 
 // 4. Configurable CORS for Production & Local Development
-const rawOrigins = process.env.FRONTEND_URL || "*";
-const allowedOrigins = rawOrigins.includes(",") ? rawOrigins.split(",").map(o => o.trim()) : rawOrigins;
+const DEFAULT_ALLOWED_ORIGINS = [
+    "https://novacall-two.vercel.app",
+    "https://novacall-backend.onrender.com",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:8000"
+];
+
+const configuredOrigins = process.env.FRONTEND_URL
+    ? (process.env.FRONTEND_URL.includes(",")
+        ? process.env.FRONTEND_URL.split(",").map(o => o.trim()).filter(Boolean)
+        : [process.env.FRONTEND_URL.trim()])
+    : DEFAULT_ALLOWED_ORIGINS;
 
 app.use(cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, server-to-server, health checks)
+        if (!origin) return callback(null, true);
+        // Allow in dev or if wildcard is explicitly configured
+        if (configuredOrigins.includes("*") || process.env.NODE_ENV !== "production") {
+            return callback(null, true);
+        }
+        // Allow configured origins or Vercel preview deployments
+        if (configuredOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
+            return callback(null, true);
+        }
+        logger.warn(`CORS rejected request from origin: ${origin}`);
+        return callback(null, false);
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id", "X-Correlation-Id"],

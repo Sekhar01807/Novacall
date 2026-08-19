@@ -14,8 +14,18 @@ import { logger } from "../utils/logger.js";
  * @returns {import('socket.io').Server}
  */
 export const initializeSocketIO = (server, options = {}) => {
-    const rawOrigins = process.env.FRONTEND_URL || "*";
-    const allowedOrigins = rawOrigins.includes(",") ? rawOrigins.split(",").map(o => o.trim()) : rawOrigins;
+    const DEFAULT_ALLOWED_ORIGINS = [
+        "https://novacall-two.vercel.app",
+        "https://novacall-backend.onrender.com",
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:8000"
+    ];
+
+    const rawOrigins = process.env.FRONTEND_URL;
+    const allowedOrigins = rawOrigins
+        ? (rawOrigins.includes(",") ? rawOrigins.split(",").map(o => o.trim()) : rawOrigins)
+        : (process.env.NODE_ENV === "production" ? DEFAULT_ALLOWED_ORIGINS : "*");
 
     const io = new Server(server, {
         cors: {
