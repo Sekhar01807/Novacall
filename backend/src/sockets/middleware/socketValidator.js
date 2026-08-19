@@ -3,12 +3,19 @@ import { logger } from "../../utils/logger.js";
 
 /**
  * Socket.IO Event Payload Validators and Rate Limiters
+ * 
+ * Architecture Note:
+ * Socket rate limiters maintain in-memory sliding-window token arrays indexed by socketId.
+ * - Single-instance model: State is stored locally per Node process.
+ * - Multi-instance scaling: In a clustered multi-node deployment, Socket.IO adapter
+ *   (@socket.io/redis-adapter) synchronizes rooms while distributed rate-limiting can be offloaded
+ *   to Redis token-bucket keys (e.g. ioredis EVAL scripts) or IP-level reverse proxy throttles.
  */
 
-// Sliding window rate limiting stores
-const signalingRateLimits = new Map(); // socketId => timestamp array
-const moderationRateLimits = new Map(); // socketId => timestamp array
-const joinRateLimits = new Map(); // socketId => timestamp array
+// Sliding window rate limiting stores (socketId => timestamp array)
+const signalingRateLimits = new Map();
+const moderationRateLimits = new Map();
+const joinRateLimits = new Map();
 
 // Rate limiting parameters
 const SIGNALING_WINDOW_MS = 3000;

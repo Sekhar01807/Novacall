@@ -49,10 +49,10 @@ app.use((req, res, next) => {
     if (req.secure || req.headers["x-forwarded-proto"] === "https") {
         res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     }
-    // Content-Security-Policy configured for React SPA, WebSockets, WebRTC STUN/TURN, Google Fonts, and MUI
+    // Content-Security-Policy: Strict origin policy for React SPA, WebSockets, Google Fonts, and MUI styling
     res.setHeader(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; media-src 'self' blob: mediastream:; connect-src 'self' ws: wss: http: https:;"
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' ws: wss:; base-uri 'self'; object-src 'none';"
     );
     next();
 });
@@ -78,10 +78,29 @@ app.use(cors({
 app.use(express.json({ limit: "50kb" }));
 app.use(express.urlencoded({ limit: "50kb", extended: true }));
 
-// Rate Limiter Middleware
+/**
+ * Single-Instance In-Memory HTTP Rate Limiter
+ * 
+ * Architecture Note:
+ * This rate limiter utilizes an in-process Map tracking sliding request counts per IP.
+ * - Current deployment model: Single-instance container / Node process.
+ * - Horizontal Scaling / Multi-Instance Migration: For multi-replica clustered deployments,
+ *   replace this in-memory Map with a centralized Redis key-value store (e.g., rate-limit-redis)
+ *   or an API Gateway / reverse proxy rate-limiting tier (e.g., Cloudflare, NGINX limit_req).
+ */
 const requestCounts = new Map();
-const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
-const MAX_REQUESTS_PER_WINDOW = 200;
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_REQUESTS_PER_WINDOW = 200; // 200 requests / 15 min per IP
+
+// Periodic memory cleanup for stale IP rate limit records
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of requestCounts.entries()) {
+        if (now - record.startTime > RATE_LIMIT_WINDOW_MS) {
+            requestCounts.delete(ip);
+        }
+    }
+}, RATE_LIMIT_WINDOW_MS).unref();
 
 const rateLimiter = (req, res, next) => {
     const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;

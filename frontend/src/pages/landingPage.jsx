@@ -387,7 +387,7 @@ export default function LandingPage() {
                         </AccordionSummary>
                         <AccordionDetails>
                             <Typography sx={{ color: '#64748B' }}>
-                                Yes, all meetings are encrypted end-to-end. Your shared notes, history logs, chat records, and poll data are securely stored and accessible only by you and authorized participants. We never sell or share your meeting data with third parties.
+                                WebRTC media uses DTLS-SRTP encryption, while signaling and authenticated application data are protected through the platform’s secure transport and access controls. Your shared notes, history logs, chat records, and poll data are securely stored and accessible only by you and authorized participants. We never sell or share your meeting data with third parties.
                             </Typography>
                         </AccordionDetails>
                     </Accordion>

@@ -215,8 +215,9 @@ $$\text{Handshake Authentication} \longrightarrow \text{Room Membership} \longri
   - **Production (`NODE_ENV=production`)**: Verification codes are **never** exposed in API responses. In enterprise production, an external transactional mailer (e.g., Resend, AWS SES) delivers the code out-of-band to the user's verified inbox.
   - **Local Development / Testing**: When `NODE_ENV !== "production"` and no SMTP server is configured, the code is included in the mock response payload exclusively to facilitate automated integration and UI testing without external mail dependencies.
 
-### 4. HTTP Headers & Fail-Closed Production CORS
-- **Strict-Transport-Security & CSP**: Hardened security headers including nosniff, frame protection, and a tailored `Content-Security-Policy` for React SPA, WebSockets (`ws:`, `wss:`), WebRTC STUN/TURN (`media-src`, `mediastream:`), Google Fonts, and MUI.
+### 4. HTTP Headers, CSP & Rate Limiting Architecture
+- **Strict-Transport-Security & Hardened CSP**: Production security headers including `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, and a tightened `Content-Security-Policy` (`script-src 'self'`, `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`, `font-src 'self' https://fonts.gstatic.com data:`, `img-src 'self' data: blob:`, `media-src 'self' blob: mediastream:`, `connect-src 'self' ws: wss:`, `base-uri 'self'`, `object-src 'none'`). Permissive directives and broad wildcards have been removed.
+- **Rate Limiting Architecture**: Both HTTP REST endpoints and Socket.IO signaling/moderation pipelines utilize high-throughput sliding-window in-memory stores. This model is optimized for single-instance container deployments. For horizontally scaled multi-replica deployments, the architecture is designed to drop in a distributed Redis backend (via `rate-limit-redis` and `@socket.io/redis-adapter`).
 - **Fail-Closed CORS**: Startup validation ensures production deployments refuse wildcard origins (`*`) when credentials are enabled.
 
 ---
