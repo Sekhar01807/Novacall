@@ -27,6 +27,7 @@ import { AuthContext } from '../contexts/AuthContext';
 import { Snackbar, Alert, CircularProgress } from '@mui/material';
 import { logoImg } from '../assets/images';
 import { useLocation, useNavigate } from 'react-router-dom';
+import server from '../environment';
 
 const highContrastLightTheme = createTheme({
     palette: {
@@ -73,7 +74,6 @@ export default function Authentication() {
     const [forgotModalOpen, setForgotModalOpen] = React.useState(false);
     const [forgotEmail, setForgotEmail] = React.useState('');
     const [forgotStep, setForgotStep] = React.useState(1); // 1: Email, 2: Code & New Password
-    const [generatedCode, setGeneratedCode] = React.useState('');
     const [enteredCode, setEnteredCode] = React.useState('');
     const [newPassword, setNewPassword] = React.useState('');
     const [forgotMsg, setForgotMsg] = React.useState('');
@@ -173,7 +173,10 @@ export default function Authentication() {
                 await handleLogin(email, password);
             }
             if (formState === 1) {
-                let result = await handleRegister(name, email, email, password);
+                // Derive a valid username from email (local part before @)
+                // Backend username validator only allows: alphanumeric, underscores, dots, hyphens
+                const derivedUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_.-]/g, '_');
+                let result = await handleRegister(name, email, derivedUsername, password);
                 setName("");
                 setEmail("");
                 setConfirmPassword("");
@@ -208,7 +211,6 @@ export default function Authentication() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
 
-            setGeneratedCode(data.resetCode || '123456');
             setForgotMsg(`Verification code generated: ${data.resetCode || '123456'}`);
             setForgotStep(2);
         } catch (err) {

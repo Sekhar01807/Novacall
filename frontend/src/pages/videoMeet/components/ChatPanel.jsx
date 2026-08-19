@@ -3,7 +3,7 @@ import { Box, Typography, TextField, Button } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import styles from "../../../styles/videoComponent.module.css";
 
-export function ChatPanel({ messages, onSendMessage, localUsername }) {
+export function ChatPanel({ messages, onSendMessage }) {
     const [messageText, setMessageText] = useState("");
 
     const handleSend = (e) => {

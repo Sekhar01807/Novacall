@@ -5,23 +5,52 @@ import styles from "../../../styles/videoComponent.module.css";
 export function VideoGrid({
     localStream,
     localUsername,
+    localSocketId,
     isLocalAudioMuted,
     isLocalVideoMuted,
-    remoteVideos,
-    peerNames,
-    peerMediaStates,
+    remoteVideos = [],
+    peerNames = {},
+    peerMediaStates = {},
     screenStream,
     isScreenSharing,
     localQuality = "Excellent",
     localMetrics = null,
     peerQualities = {}
 }) {
+    // Collect all remote peer IDs from peerNames and remoteVideos
+    const remotePeerIds = Array.from(new Set([
+        ...Object.keys(peerNames).filter(id => id !== localSocketId),
+        ...remoteVideos.map(v => v.socketId)
+    ])).filter(Boolean);
+
+    const remotePeers = remotePeerIds.map((peerId, idx) => {
+        const vid = remoteVideos.find(v => v.socketId === peerId);
+        return {
+            socketId: peerId,
+            stream: vid ? vid.stream : null,
+            name: peerNames[peerId] || `Participant ${idx + 1}`,
+            isVideoMuted: vid ? (peerMediaStates[peerId]?.videoMuted ?? false) : true,
+            isAudioMuted: peerMediaStates[peerId]?.audioMuted ?? false,
+            quality: peerQualities[peerId]?.quality || "Excellent",
+            rtt: peerQualities[peerId]?.rtt || null,
+            packetLoss: peerQualities[peerId]?.packetLoss || null
+        };
+    });
+
     if (isScreenSharing && screenStream) {
         return (
             <div className={styles.screenShareStage}>
                 <div className={styles.screenMainStage}>
                     <video
-                        ref={ref => { if (ref) ref.srcObject = screenStream; }}
+                        ref={ref => {
+                            if (ref) {
+                                try {
+                                    ref.srcObject = (typeof MediaStream !== 'undefined' && screenStream instanceof MediaStream) ? screenStream : null;
+                                } catch {
+                                    ref.srcObject = null;
+                                }
+                            }
+                        }}
                         autoPlay
                         playsInline
                         style={{ width: '100%', height: '100%', objectFit: 'contain' }}
@@ -38,16 +67,16 @@ export function VideoGrid({
                         rtt={localMetrics?.rtt}
                         packetLoss={localMetrics?.packetLoss}
                     />
-                    {remoteVideos.map((vid, idx) => (
+                    {remotePeers.map((peer) => (
                         <VideoTile
-                            key={vid.socketId || idx}
-                            stream={vid.stream}
-                            username={peerNames[vid.socketId] || `Participant ${idx + 1}`}
-                            isAudioMuted={peerMediaStates[vid.socketId]?.audioMuted}
-                            isVideoMuted={peerMediaStates[vid.socketId]?.videoMuted}
-                            quality={peerQualities[vid.socketId]?.quality || "Excellent"}
-                            rtt={peerQualities[vid.socketId]?.rtt}
-                            packetLoss={peerQualities[vid.socketId]?.packetLoss}
+                            key={peer.socketId}
+                            stream={peer.stream}
+                            username={peer.name}
+                            isAudioMuted={peer.isAudioMuted}
+                            isVideoMuted={peer.isVideoMuted}
+                            quality={peer.quality}
+                            rtt={peer.rtt}
+                            packetLoss={peer.packetLoss}
                         />
                     ))}
                 </div>
@@ -70,17 +99,17 @@ export function VideoGrid({
             />
 
             {/* Remote Peer Video Tiles */}
-            {remoteVideos.map((vid, idx) => (
+            {remotePeers.map((peer, idx) => (
                 <VideoTile
-                    key={vid.socketId || idx}
-                    stream={vid.stream}
-                    username={peerNames[vid.socketId] || `Participant ${idx + 1}`}
-                    isAudioMuted={peerMediaStates[vid.socketId]?.audioMuted}
-                    isVideoMuted={peerMediaStates[vid.socketId]?.videoMuted}
+                    key={peer.socketId}
+                    stream={peer.stream}
+                    username={peer.name}
+                    isAudioMuted={peer.isAudioMuted}
+                    isVideoMuted={peer.isVideoMuted}
                     isActiveSpeaker={idx === 0}
-                    quality={peerQualities[vid.socketId]?.quality || "Excellent"}
-                    rtt={peerQualities[vid.socketId]?.rtt}
-                    packetLoss={peerQualities[vid.socketId]?.packetLoss}
+                    quality={peer.quality}
+                    rtt={peer.rtt}
+                    packetLoss={peer.packetLoss}
                 />
             ))}
         </div>

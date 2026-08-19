@@ -79,132 +79,142 @@ describe("Chat", () => {
         const client1 = await connectClient({ token: aliceToken });
         const client2 = await connectClient({ token: bobToken });
 
-        await new Promise((resolve) => {
-            client1.emit("join-call", "chat-valid-room");
-            client1.once("host-status", () => resolve());
-        });
-
-        await new Promise((resolve) => {
-            client2.emit("join-call", "chat-valid-room");
-            client2.once("host-status", () => resolve());
-        });
-
-        const chatPromise = new Promise((resolve) => {
-            client2.once("chat-message", (data, sender, senderSocketId, timestamp) => {
-                resolve({ data, sender, senderSocketId, timestamp });
+        try {
+            await new Promise((resolve) => {
+                client1.emit("join-call", "chat-valid-room");
+                client1.once("host-status", () => resolve());
             });
-        });
 
-        client1.emit("chat-message", "Hello team!");
-        const { data, sender, senderSocketId, timestamp } = await chatPromise;
+            await new Promise((resolve) => {
+                client2.emit("join-call", "chat-valid-room");
+                client2.once("host-status", () => resolve());
+            });
 
-        assert.strictEqual(data, "Hello team!");
-        assert.strictEqual(sender, "Alice Williams");
-        assert.strictEqual(senderSocketId, client1.id);
-        assert.ok(timestamp);
+            const chatPromise = new Promise((resolve) => {
+                client2.once("chat-message", (data, sender, senderSocketId, timestamp) => {
+                    resolve({ data, sender, senderSocketId, timestamp });
+                });
+            });
 
-        client1.disconnect();
-        client2.disconnect();
+            client1.emit("chat-message", "Hello team!");
+            const { data, sender, senderSocketId, timestamp } = await chatPromise;
+
+            assert.strictEqual(data, "Hello team!");
+            assert.strictEqual(sender, "Alice Williams");
+            assert.strictEqual(senderSocketId, client1.id);
+            assert.ok(timestamp);
+        } finally {
+            client1.disconnect();
+            client2.disconnect();
+        }
     });
 
     test("XSS", async () => {
         const client1 = await connectClient({ token: aliceToken });
         const client2 = await connectClient({ token: bobToken });
 
-        await new Promise((resolve) => {
-            client1.emit("join-call", "chat-xss-room");
-            client1.once("host-status", () => resolve());
-        });
+        try {
+            await new Promise((resolve) => {
+                client1.emit("join-call", "chat-xss-room");
+                client1.once("host-status", () => resolve());
+            });
 
-        await new Promise((resolve) => {
-            client2.emit("join-call", "chat-xss-room");
-            client2.once("host-status", () => resolve());
-        });
+            await new Promise((resolve) => {
+                client2.emit("join-call", "chat-xss-room");
+                client2.once("host-status", () => resolve());
+            });
 
-        const chatPromise = new Promise((resolve) => {
-            client2.once("chat-message", (data) => resolve(data));
-        });
+            const chatPromise = new Promise((resolve) => {
+                client2.once("chat-message", (data) => resolve(data));
+            });
 
-        client1.emit("chat-message", '<script>alert("xss")</script>');
-        const data = await chatPromise;
+            client1.emit("chat-message", '<script>alert("xss")</script>');
+            const data = await chatPromise;
 
-        assert.strictEqual(data, '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
-        assert.ok(!data.includes("<script>"));
-
-        client1.disconnect();
-        client2.disconnect();
+            assert.strictEqual(data, '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+            assert.ok(!data.includes("<script>"));
+        } finally {
+            client1.disconnect();
+            client2.disconnect();
+        }
     });
 
     test("oversized message", async () => {
         const client1 = await connectClient({ token: aliceToken });
         const client2 = await connectClient({ token: bobToken });
 
-        await new Promise((resolve) => {
-            client1.emit("join-call", "chat-size-room");
-            client1.once("host-status", () => resolve());
-        });
+        try {
+            await new Promise((resolve) => {
+                client1.emit("join-call", "chat-size-room");
+                client1.once("host-status", () => resolve());
+            });
 
-        await new Promise((resolve) => {
-            client2.emit("join-call", "chat-size-room");
-            client2.once("host-status", () => resolve());
-        });
+            await new Promise((resolve) => {
+                client2.emit("join-call", "chat-size-room");
+                client2.once("host-status", () => resolve());
+            });
 
-        const chatPromise = new Promise((resolve) => {
-            client2.once("chat-message", (data) => resolve(data));
-        });
+            const chatPromise = new Promise((resolve) => {
+                client2.once("chat-message", (data) => resolve(data));
+            });
 
-        const hugeMessage = "A".repeat(3000);
-        client1.emit("chat-message", hugeMessage);
-        const data = await chatPromise;
+            const hugeMessage = "A".repeat(3000);
+            client1.emit("chat-message", hugeMessage);
+            const data = await chatPromise;
 
-        // Message should be truncated to max limit of 1000 chars
-        assert.ok(data.length <= 1000);
-        assert.strictEqual(data.length, 1000);
-
-        client1.disconnect();
-        client2.disconnect();
+            // Message should be truncated to max limit of 1000 chars
+            assert.ok(data.length <= 1000);
+            assert.strictEqual(data.length, 1000);
+        } finally {
+            client1.disconnect();
+            client2.disconnect();
+        }
     });
 
     test("spam", async () => {
         const client = await connectClient({ token: aliceToken });
 
-        await new Promise((resolve) => {
-            client.emit("join-call", "chat-spam-room");
-            client.once("host-status", () => resolve());
-        });
-
-        const rateLimitPromise = new Promise((resolve) => {
-            client.on("error-message", (err) => {
-                if (err.code === "RATE_LIMIT_EXCEEDED") {
-                    resolve(err);
-                }
+        try {
+            await new Promise((resolve) => {
+                client.emit("join-call", "chat-spam-room");
+                client.once("host-status", () => resolve());
             });
-        });
 
-        // Send 7 messages rapidly (limit is 5 per 3s window)
-        for (let i = 1; i <= 7; i++) {
-            client.emit("chat-message", `Spam message #${i}`);
+            const rateLimitPromise = new Promise((resolve) => {
+                client.on("error-message", (err) => {
+                    if (err.code === "RATE_LIMIT_EXCEEDED") {
+                        resolve(err);
+                    }
+                });
+            });
+
+            // Send 7 messages rapidly (limit is 5 per 3s window)
+            for (let i = 1; i <= 7; i++) {
+                client.emit("chat-message", `Spam message #${i}`);
+            }
+
+            const err = await rateLimitPromise;
+            assert.strictEqual(err.code, "RATE_LIMIT_EXCEEDED");
+            assert.ok(err.retryAfterMs);
+        } finally {
+            client.disconnect();
         }
-
-        const err = await rateLimitPromise;
-        assert.strictEqual(err.code, "RATE_LIMIT_EXCEEDED");
-        assert.ok(err.retryAfterMs);
-
-        client.disconnect();
     });
 
     test("unauthorized sender", async () => {
         // Socket attempts to send chat message before joining any room
         const client = await connectClient({ token: aliceToken });
 
-        const errorPromise = new Promise((resolve) => {
-            client.once("error-message", (err) => resolve(err));
-        });
+        try {
+            const errorPromise = new Promise((resolve) => {
+                client.once("error-message", (err) => resolve(err));
+            });
 
-        client.emit("chat-message", "Orphaned message");
-        const err = await errorPromise;
-        assert.strictEqual(err.code, "NOT_IN_ROOM");
-
-        client.disconnect();
+            client.emit("chat-message", "Orphaned message");
+            const err = await errorPromise;
+            assert.strictEqual(err.code, "NOT_IN_ROOM");
+        } finally {
+            client.disconnect();
+        }
     });
 });

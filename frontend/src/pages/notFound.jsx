@@ -87,7 +87,7 @@ export default function NotFound() {
                                 }
                             }}
                         >
-                            Go Back to Previous Page
+                            Go Back
                         </Button>
 
                         <Button
@@ -104,7 +104,7 @@ export default function NotFound() {
                                 '&:hover': { bgcolor: '#2563EB' }
                             }}
                         >
-                            {token ? "Return to Dashboard" : "Return to Home"}
+                            {token ? "Go to Dashboard" : "Go to Home"}
                         </Button>
                     </Box>
                 </Paper>

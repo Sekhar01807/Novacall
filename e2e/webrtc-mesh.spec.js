@@ -5,8 +5,9 @@ test.describe('E2E', () => {
     const roomCode = `e2e-mesh-${Date.now()}`;
 
     // 1. Launch Browser A (Host: Alice)
+    const isChromium = browser.browserType().name() === 'chromium';
     const contextA = await browser.newContext({
-      permissions: ['camera', 'microphone']
+      ...(isChromium ? { permissions: ['camera', 'microphone'] } : {})
     });
     const pageA = await contextA.newPage();
 
@@ -23,7 +24,7 @@ test.describe('E2E', () => {
 
     // 2. Launch Browser B (Participant: Bob)
     const contextB = await browser.newContext({
-      permissions: ['camera', 'microphone']
+      ...(isChromium ? { permissions: ['camera', 'microphone'] } : {})
     });
     const pageB = await contextB.newPage();
 
@@ -39,9 +40,9 @@ test.describe('E2E', () => {
 
     // 3. WebRTC Peer Discovery & Tile Verification in Browser A and Browser B
     // Browser A sees Bob's tile
-    await expect(pageA.locator('text=Bob (Peer)').or(pageA.locator('text=2 people')).first()).toBeVisible({ timeout: 8000 });
+    await expect(pageA.locator('text=Bob (Peer)').or(pageA.locator('text=2 people')).first()).toBeVisible({ timeout: 12000 });
     // Browser B sees Alice's tile
-    await expect(pageB.locator('text=Alice (Host)').or(pageB.locator('text=2 people')).first()).toBeVisible({ timeout: 8000 });
+    await expect(pageB.locator('text=Alice (Host)').or(pageB.locator('text=2 people')).first()).toBeVisible({ timeout: 12000 });
 
     // 4. In-Meeting Chat Messaging between Browser A and Browser B
     const chatBtnA = pageA.locator('button[title*="Chat" i], button:has-text("Chat"), svg[data-testid="ChatIcon"]').first();

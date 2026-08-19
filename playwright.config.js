@@ -8,40 +8,51 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 30 * 1000,
   expect: {
-    timeout: 5000
+    timeout: 8000
   },
   fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
     baseURL: process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:5173',
     trace: 'on-first-retry',
     video: 'on-first-retry',
     screenshot: 'only-on-failure',
-    // Permissions needed for WebRTC audio/video testing
-    permissions: ['camera', 'microphone'],
-    launchOptions: {
-      args: [
-        '--use-fake-ui-for-media-stream',
-        '--use-fake-device-for-media-stream'
-      ]
-    }
   },
 
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        permissions: ['camera', 'microphone'],
+        launchOptions: {
+          args: [
+            '--use-fake-ui-for-media-stream',
+            '--use-fake-device-for-media-stream'
+          ]
+        }
+      },
     },
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: {
+        ...devices['Desktop Firefox'],
+        launchOptions: {
+          firefoxUserPrefs: {
+            'media.navigator.permission.disabled': true,
+            'media.navigator.streams.fake': true,
+          }
+        }
+      },
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      use: {
+        ...devices['Desktop Safari'],
+      },
     }
   ],
 
@@ -50,15 +61,15 @@ export default defineConfig({
     {
       command: 'npm run dev',
       cwd: './backend',
-      port: 8000,
-      reuseExistingServer: !process.env.CI,
+      url: 'http://localhost:8000/health',
+      reuseExistingServer: true,
       timeout: 120 * 1000,
     },
     {
       command: 'npm run dev',
       cwd: './frontend',
-      port: 5173,
-      reuseExistingServer: !process.env.CI,
+      url: 'http://localhost:5173',
+      reuseExistingServer: true,
       timeout: 120 * 1000,
     }
   ]

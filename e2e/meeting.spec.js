@@ -10,7 +10,7 @@ test.describe('In-Meeting Conference Controls, Real-Time Chat & Drawer Flow', ()
       await nameInput.fill('Captain Kirk');
       const joinBtn = page.getByRole('button', { name: /Join Meeting Room/i });
       await joinBtn.click();
-      await page.waitForTimeout(1000);
+      await expect(page.locator(`text=${roomCode}`).first()).toBeVisible({ timeout: 10000 });
     }
   });
 

@@ -1,4 +1,4 @@
-import { requireRoomParticipant, addChatMessage, getParticipantSocketIds, sanitizeHTML } from "../roomState.js";
+import { requireRoomParticipant, addChatMessage, getParticipantSocketIds } from "../roomState.js";
 import { validateChatMessage } from "../middleware/socketValidator.js";
 import { logger } from "../../utils/logger.js";
 import { ERROR_CODES } from "../../utils/errorCodes.js";
@@ -55,9 +55,8 @@ export const handleChatMessage = (io, socket, rawData, untrustedSender) => {
     timestamps.push(now);
     socketMessageTimestamps.set(socket.id, timestamps);
 
-    // Server-side HTML entity sanitization (XSS defense-in-depth) + 1000 char cap
-    const sanitizedText = sanitizeHTML(rawData.trim());
-    const messageText = sanitizedText.substring(0, 1000);
+    // Enforce 1000-character cap on incoming message payload
+    const messageText = (typeof rawData === "string" ? rawData : String(rawData || "")).trim().substring(0, 1000);
 
     const participantCheck = requireRoomParticipant(socket);
     if (!participantCheck.ok) {

@@ -5,10 +5,10 @@ test.describe('Navigation, Guest Access & Theme System', () => {
     await page.goto('/');
 
     // Check navbar brand presence
-    await expect(page.locator('text=NovaCall')).toBeVisible();
+    await expect(page.locator('text=NovaCall').first()).toBeVisible();
 
-    // Check feature sections
-    const getStartedBtn = page.getByRole('button', { name: /Get Started|Join Meeting|Start Call/i }).first();
+    // Check feature sections and CTA button
+    const getStartedBtn = page.getByRole('button', { name: /Get Started|Start Free Meeting|Try Instant Demo Call|Join/i }).first();
     await expect(getStartedBtn).toBeVisible();
   });
 

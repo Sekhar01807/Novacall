@@ -19,6 +19,12 @@ frontend/dist/
 frontend/dist-ssr/
 build/
 
+# Test Reports & Artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # Logs & Diagnostics
 *.log
 npm-debug.log*

@@ -55,6 +55,7 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
     const [kickedModalOpen, setKickedModalOpen] = useState(false);
     const [meetingEndedModalOpen, setMeetingEndedModalOpen] = useState(false);
     const [roomFullModalOpen, setRoomFullModalOpen] = useState(false);
+    const [localSocketId, setLocalSocketId] = useState("");
 
     const socketRef = useRef(null);
     const socketIdRef = useRef(null);
@@ -123,7 +124,7 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
                     totalRtt += peerRtt;
                     totalLoss += lossRate;
                     count++;
-                } catch (e) {
+                } catch {
                     // Ignore stats error during renegotiation
                 }
             }
@@ -171,7 +172,7 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
                     pc.onsignalingstatechange = null;
                     pc.close();
                 }
-            } catch (err) {
+            } catch {
                 // Connection already closed
             }
         }
@@ -204,6 +205,8 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
         };
     }, [cleanupWebRTC]);
 
+    const connectToSocketRef = useRef(null);
+
     const connectToSocket = useCallback(() => {
         setMeetingState(MEETING_STATES.CONNECTING);
         const socket = socketService.connect(null, username);
@@ -214,7 +217,9 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
                 setErrorMessage("Your login session has expired. Joining as guest participant.");
                 localStorage.removeItem("token");
                 socketService.disconnect();
-                setTimeout(() => connectToSocket(), 500);
+                setTimeout(() => {
+                    if (connectToSocketRef.current) connectToSocketRef.current();
+                }, 500);
             } else {
                 setMeetingState(MEETING_STATES.RECONNECTING);
                 setNetworkQuality("Reconnecting");
@@ -245,7 +250,9 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
                             });
                         }).catch(() => {});
                     }
-                } catch (e) {}
+                } catch {
+                    // Ignore reconnection offer error
+                }
             }
         });
 
@@ -253,8 +260,10 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
             try {
                 const signal = JSON.parse(message);
                 if (fromId !== socketIdRef.current && connections[fromId]) {
-                    if (signal.sdp) {
-                        connections[fromId].setRemoteDescription(new RTCSessionDescription(signal.sdp)).then(() => {
+                    const SessionDesc = window.RTCSessionDescription || window.webkitRTCSessionDescription;
+                    const IceCand = window.RTCIceCandidate || window.webkitRTCIceCandidate;
+                    if (signal.sdp && SessionDesc) {
+                        connections[fromId].setRemoteDescription(new SessionDesc(signal.sdp)).then(() => {
                             if (signal.sdp.type === 'offer') {
                                 connections[fromId].createAnswer().then((description) => {
                                     connections[fromId].setLocalDescription(description).then(() => {
@@ -264,21 +273,27 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
                             }
                         }).catch(() => {});
                     }
-                    if (signal.ice) {
-                        connections[fromId].addIceCandidate(new RTCIceCandidate(signal.ice)).catch(() => {});
+                    if (signal.ice && IceCand) {
+                        connections[fromId].addIceCandidate(new IceCand(signal.ice)).catch(() => {});
                     }
                 }
-            } catch (err) {
+            } catch {
                 // Ignore malformed signal
             }
         });
 
-        socket.on("connect", () => {
+        const handleConnected = () => {
             socketIdRef.current = socket.id;
+            setLocalSocketId(socket.id);
             socketService.joinCall(roomCode, username);
             setMeetingState(MEETING_STATES.CONNECTED);
             setNetworkQuality("Excellent");
-        });
+        };
+
+        socket.on("connect", handleConnected);
+        if (socket.connected) {
+            handleConnected();
+        }
 
         socket.on("host-status", (data) => {
             setIsHost(Boolean(data.isHost));
@@ -305,7 +320,9 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
                     connections[id].onicecandidate = null;
                     connections[id].close();
                     delete connections[id];
-                } catch (e) {}
+                } catch {
+                    // Ignore peer cleanup error
+                }
             }
 
             setVideos(prev => prev.filter(v => v.socketId !== id));
@@ -361,11 +378,14 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
         socket.on("user-joined", (id, clients, roomNamesMap) => {
             if (roomNamesMap) setPeerNames(roomNamesMap);
 
+            const PeerConn = window.RTCPeerConnection || window.webkitRTCPeerConnection;
+            if (!PeerConn) return;
+
             clients.forEach((socketListId) => {
                 if (socketListId === socketIdRef.current) return;
                 if (connections[socketListId]) return;
 
-                const pc = new RTCPeerConnection(peerConfigConnections);
+                const pc = new PeerConn(peerConfigConnections);
                 connections[socketListId] = pc;
 
                 pc.onicecandidate = (event) => {
@@ -384,7 +404,9 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
                                     socketService.sendSignal(socketListId, JSON.stringify({ sdp: pc.localDescription }));
                                 });
                             });
-                        } catch (e) {}
+                        } catch {
+                            // Ignore offer creation failure
+                        }
                     } else if (state === 'connected' || state === 'completed') {
                         setNetworkQuality("Excellent");
                     }
@@ -406,7 +428,9 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
                     window.localStream.getTracks().forEach(track => {
                         try {
                             pc.addTrack(track, window.localStream);
-                        } catch (e) {}
+                        } catch {
+                            // Ignore track addition error
+                        }
                     });
                 }
             });
@@ -420,7 +444,9 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
                                 connections[id2].addTrack(track, window.localStream);
                             });
                         }
-                    } catch (e) {}
+                    } catch {
+                        // Ignore track addition error
+                    }
                     connections[id2].createOffer().then(description => {
                         connections[id2].setLocalDescription(description).then(() => {
                             socketService.sendSignal(id2, JSON.stringify({ sdp: connections[id2].localDescription }));
@@ -430,6 +456,10 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
             }
         });
     }, [roomCode, username, audio, toggleAudio, cleanupWebRTC]);
+
+    useEffect(() => {
+        connectToSocketRef.current = connectToSocket;
+    }, [connectToSocket]);
 
     const getActiveConnections = useCallback(() => connections, []);
 
@@ -455,6 +485,7 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
         roomFullModalOpen,
         connectToSocket,
         cleanupWebRTC,
-        getActiveConnections
+        getActiveConnections,
+        localSocketId
     };
 }

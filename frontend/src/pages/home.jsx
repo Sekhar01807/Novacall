@@ -1,8 +1,9 @@
-import React, { useContext, useState } from 'react'
+/* eslint-disable react-refresh/only-export-components */
+import React, { useContext, useState, useCallback, useEffect } from 'react'
 import withAuth from '../utils/withAuth'
 import { useNavigate } from 'react-router-dom'
 import "../App.css";
-import { Button, IconButton, TextField, Box, Typography, InputAdornment, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Avatar, Divider, Collapse, List, ListItem, ListItemIcon, ListItemText, Skeleton, CircularProgress } from '@mui/material';
+import { Button, IconButton, TextField, Box, Typography, InputAdornment, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Avatar, Divider, Collapse, List, ListItem, ListItemIcon, ListItemText, CircularProgress } from '@mui/material';
 import RestoreIcon from '@mui/icons-material/Restore';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
@@ -15,17 +16,11 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { AuthContext } from '../contexts/AuthContext';
-import { logoImg, homeHeroImg } from '../assets/images';
+import { logoImg } from '../assets/images';
 
 function HomeComponent() {
     let navigate = useNavigate();
     const [meetingCode, setMeetingCode] = useState("");
-    const [isLoading, setIsLoading] = useState(true);
-
-    React.useEffect(() => {
-        const timer = setTimeout(() => setIsLoading(false), 500);
-        return () => clearTimeout(timer);
-    }, []);
     
     // Additional Polish & Priority 2 States
     const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -48,7 +43,7 @@ function HomeComponent() {
     const displayName = userData?.name || userData?.username || savedProfile.displayName || (localStorage.getItem("token") ? "User" : "Guest");
     const profilePic = userData?.profilePic || savedProfile.profilePic || "";
 
-    const loadDashboardData = async () => {
+    const loadDashboardData = useCallback(async () => {
         try {
             const upcoming = await getUpcomingMeetings();
             setUpcomingList(upcoming || []);
@@ -57,11 +52,11 @@ function HomeComponent() {
         } catch (e) {
             console.error("Dashboard data load error:", e);
         }
-    };
+    }, [getUpcomingMeetings, getHistoryOfUser]);
 
-    React.useEffect(() => {
+    useEffect(() => {
         loadDashboardData();
-    }, []);
+    }, [loadDashboardData]);
 
     const handleProfileClick = () => {
         setProfileOpen(!profileOpen);
@@ -75,7 +70,7 @@ function HomeComponent() {
         try {
             await addToUserHistory(meetingCode);
             navigate(`/${meetingCode}`);
-        } catch (e) {
+        } catch {
             setToastMessage("Failed to join meeting. Please try again.");
             setToastOpen(true);
         } finally {
@@ -91,17 +86,12 @@ function HomeComponent() {
             const code = Math.random().toString(36).substring(2, 8);
             await addToUserHistory(code);
             navigate(`/${code}`);
-        } catch (e) {
+        } catch {
             setToastMessage("Failed to create meeting. Please try again.");
             setToastOpen(true);
         } finally {
             setNewMeetingLoading(false);
         }
-    };
-
-    const generateRandomCode = () => {
-        const rand = Math.random().toString(36).substring(2, 8);
-        setMeetingCode(rand);
     };
 
     const handleCreateSchedule = async () => {
@@ -125,7 +115,7 @@ function HomeComponent() {
             setToastMessage(`Scheduled "${scheduledTitle}" successfully!`);
             setToastOpen(true);
             loadDashboardData();
-        } catch (e) {
+        } catch {
             setToastMessage("Failed to schedule meeting.");
             setToastOpen(true);
         } finally {
@@ -539,10 +529,10 @@ function HomeComponent() {
                         variant="contained" 
                         onClick={handleCreateSchedule} 
                         className="glow-btn" 
-                        disabled={!!createdScheduleLink}
+                        disabled={scheduleLoading || !!createdScheduleLink}
                         sx={{ fontWeight: 700, px: 4, borderRadius: '10px' }}
                     >
-                        Schedule Meeting
+                        {scheduleLoading ? "Scheduling..." : "Schedule Meeting"}
                     </Button>
                 </DialogActions>
             </Dialog>

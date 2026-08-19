@@ -10,7 +10,9 @@
     "test:backend": "npm test --prefix backend",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "build:frontend": "npm run build --prefix frontend",
+    "lint:frontend": "npm run lint --prefix frontend"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0"

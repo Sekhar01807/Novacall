@@ -1,5 +1,61 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+const black = ({ width = 640, height = 480 } = {}) => {
+    try {
+        let canvas = Object.assign(document.createElement("canvas"), { width, height });
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.fillRect(0, 0, width, height);
+        if (typeof canvas.captureStream === 'function') {
+            let stream = canvas.captureStream();
+            if (stream && stream.getVideoTracks().length > 0) {
+                return Object.assign(stream.getVideoTracks()[0], { enabled: false });
+            }
+        }
+    } catch (e) {
+        console.warn("black canvas fallback error:", e);
+    }
+    return null;
+};
+
+const silence = () => {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return null;
+        let ctx = new AudioCtx();
+        let oscillator = ctx.createOscillator();
+        let dst = oscillator.connect(ctx.createMediaStreamDestination());
+        oscillator.start();
+        ctx.resume();
+        if (dst && dst.stream && dst.stream.getAudioTracks().length > 0) {
+            return Object.assign(dst.stream.getAudioTracks()[0], { enabled: false });
+        }
+    } catch (e) {
+        console.warn("silence audio fallback error:", e);
+    }
+    return null;
+};
+
+const blackSilence = () => {
+    try {
+        const tracks = [];
+        const b = black();
+        const s = silence();
+        if (b) tracks.push(b);
+        if (s) tracks.push(s);
+        const StreamClass = window.MediaStream || window.webkitMediaStream;
+        if (StreamClass) {
+            return new StreamClass(tracks);
+        }
+    } catch (e) {
+        console.warn("blackSilence creation error:", e);
+    }
+    return {
+        getTracks: () => [],
+        getAudioTracks: () => [],
+        getVideoTracks: () => []
+    };
+};
+
 export function useMediaDevices() {
     const [audio, setAudio] = useState(true);
     const [video, setVideo] = useState(true);
@@ -14,34 +70,20 @@ export function useMediaDevices() {
 
     const localVideoRef = useRef(null);
 
-    const black = ({ width = 640, height = 480 } = {}) => {
-        let canvas = Object.assign(document.createElement("canvas"), { width, height });
-        canvas.getContext('2d').fillRect(0, 0, width, height);
-        let stream = canvas.captureStream();
-        return Object.assign(stream.getVideoTracks()[0], { enabled: false });
-    };
-
-    const silence = () => {
-        let ctx = new AudioContext();
-        let oscillator = ctx.createOscillator();
-        let dst = oscillator.connect(ctx.createMediaStreamDestination());
-        oscillator.start();
-        ctx.resume();
-        return Object.assign(dst.stream.getAudioTracks()[0], { enabled: false });
-    };
-
-    const blackSilence = () => new MediaStream([black(), silence()]);
-
-    const enumerateDevices = async () => {
+    const enumerateDevices = useCallback(async () => {
         try {
             if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
             const devices = await navigator.mediaDevices.enumerateDevices();
-            setAudioDevices(devices.filter(d => d.kind === 'audioinput'));
-            setVideoDevices(devices.filter(d => d.kind === 'videoinput'));
+            const audios = devices.filter(d => d.kind === 'audioinput');
+            const videos = devices.filter(d => d.kind === 'videoinput');
+            setAudioDevices(audios);
+            setVideoDevices(videos);
+            if (audios.length > 0) setSelectedAudioDevice(prev => prev || audios[0].deviceId);
+            if (videos.length > 0) setSelectedVideoDevice(prev => prev || videos[0].deviceId);
         } catch (e) {
-            console.error("Enumerate devices error:", e);
+            console.error("Device enumeration error:", e);
         }
-    };
+    }, []);
 
     const stopMedia = useCallback(() => {
         if (window.localStream) {
@@ -61,29 +103,36 @@ export function useMediaDevices() {
 
     const getUserMedia = useCallback(async () => {
         try {
+            const savedSettings = JSON.parse(localStorage.getItem("meetingSettings")) || {};
+            if (savedSettings.defaultMicOff) setAudio(false);
+            if (savedSettings.defaultCamOff) setVideo(false);
+
             if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
                 setScreenAvailable(true);
             }
             await enumerateDevices();
 
-            // Stop existing tracks before requesting fresh media
-            if (window.localStream) {
-                window.localStream.getTracks().forEach(t => t.stop());
-            }
-
             const constraints = { video: video, audio: audio };
-            if (constraints.video || constraints.audio) {
+            if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function' && (constraints.video || constraints.audio)) {
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 window.localStream = stream;
                 if (localVideoRef.current) {
-                    localVideoRef.current.srcObject = stream;
+                    try {
+                        localVideoRef.current.srcObject = stream;
+                    } catch {
+                        localVideoRef.current.srcObject = null;
+                    }
                 }
                 setPermissionError("");
                 setPermissionDenied(false);
             } else {
                 window.localStream = blackSilence();
                 if (localVideoRef.current) {
-                    localVideoRef.current.srcObject = window.localStream;
+                    try {
+                        localVideoRef.current.srcObject = (typeof MediaStream !== 'undefined' && window.localStream instanceof MediaStream) ? window.localStream : null;
+                    } catch {
+                        localVideoRef.current.srcObject = null;
+                    }
                 }
             }
         } catch (err) {
@@ -101,10 +150,14 @@ export function useMediaDevices() {
 
             window.localStream = blackSilence();
             if (localVideoRef.current) {
-                localVideoRef.current.srcObject = window.localStream;
+                try {
+                    localVideoRef.current.srcObject = (typeof MediaStream !== 'undefined' && window.localStream instanceof MediaStream) ? window.localStream : null;
+                } catch {
+                    localVideoRef.current.srcObject = null;
+                }
             }
         }
-    }, [audio, video]);
+    }, [audio, video, enumerateDevices]);
 
     const toggleAudio = () => {
         setAudio(prev => {

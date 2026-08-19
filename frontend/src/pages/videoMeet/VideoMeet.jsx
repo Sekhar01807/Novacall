@@ -75,7 +75,8 @@ export default function VideoMeet() {
         roomFullModalOpen,
         connectToSocket,
         cleanupWebRTC,
-        getActiveConnections
+        getActiveConnections,
+        localSocketId
     } = useWebRTCConnection({
         roomCode,
         username,
@@ -83,6 +84,8 @@ export default function VideoMeet() {
         toggleAudio,
         stopMedia
     });
+
+    const participantCount = Math.max(Object.keys(peerNames).length, videos.length + 1, 1);
 
     useEffect(() => {
         getUserMedia();
@@ -129,7 +132,7 @@ export default function VideoMeet() {
                     setScreen(false);
                     getUserMedia();
                 });
-            } catch (e) {
+            } catch {
                 setErrorMessage("Screen sharing cancelled or denied.");
             }
         }
@@ -238,7 +241,7 @@ export default function VideoMeet() {
                     <MeetingHeader
                         roomCode={roomCode}
                         isHost={isHost}
-                        participantCount={videos.length + 1}
+                        participantCount={participantCount}
                         networkQuality={meetingState === MEETING_STATES.RECONNECTING ? "Reconnecting" : networkQuality}
                         networkMetrics={networkMetrics}
                         onCopyUrl={handleCopyUrl}
@@ -250,6 +253,7 @@ export default function VideoMeet() {
                             <VideoGrid
                                 localStream={window.localStream}
                                 localUsername={username}
+                                localSocketId={localSocketId}
                                 isLocalAudioMuted={!audio}
                                 isLocalVideoMuted={!video}
                                 remoteVideos={videos}
@@ -275,7 +279,7 @@ export default function VideoMeet() {
                                         sx={{ minHeight: 48 }}
                                     >
                                         <Tab label="Chat" sx={{ color: '#F8FAFC', fontWeight: 700, textTransform: 'none' }} />
-                                        <Tab label={`People (${videos.length + 1})`} sx={{ color: '#F8FAFC', fontWeight: 700, textTransform: 'none' }} />
+                                        <Tab label={`People (${participantCount})`} sx={{ color: '#F8FAFC', fontWeight: 700, textTransform: 'none' }} />
                                     </Tabs>
                                     <IconButton size="small" onClick={() => setShowDrawer(false)} sx={{ color: '#94A3B8' }}>
                                         <CloseIcon fontSize="small" />
@@ -293,6 +297,7 @@ export default function VideoMeet() {
                                     {drawerTab === 1 && (
                                         <ParticipantList
                                             localUsername={username}
+                                            localSocketId={localSocketId}
                                             isHost={isHost}
                                             remoteVideos={videos}
                                             peerNames={peerNames}
@@ -321,7 +326,7 @@ export default function VideoMeet() {
                             if (tabIndex === 0) setNewMessages(0);
                         }}
                         unreadMessages={newMessages}
-                        participantCount={videos.length + 1}
+                        participantCount={participantCount}
                         isHost={isHost}
                         onLeave={() => setShowLeaveConfirm(true)}
                     />

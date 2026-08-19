@@ -19,8 +19,12 @@ export function VideoTile({
     const videoRef = useRef(null);
 
     useEffect(() => {
-        if (videoRef.current && stream) {
-            videoRef.current.srcObject = stream;
+        if (videoRef.current) {
+            try {
+                videoRef.current.srcObject = (typeof MediaStream !== 'undefined' && stream instanceof MediaStream) ? stream : null;
+            } catch {
+                videoRef.current.srcObject = null;
+            }
         }
     }, [stream]);
 

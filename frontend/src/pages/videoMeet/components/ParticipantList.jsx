@@ -5,16 +5,22 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 
 export function ParticipantList({
     localUsername,
+    localSocketId,
     isHost,
-    remoteVideos,
-    peerNames,
+    remoteVideos = [],
+    peerNames = {},
     onHostMute,
     onHostKick
 }) {
+    const remotePeerIds = Array.from(new Set([
+        ...Object.keys(peerNames).filter(id => id !== localSocketId),
+        ...remoteVideos.map(v => v.socketId)
+    ])).filter(Boolean);
+
     return (
         <Box sx={{ p: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#94A3B8', mb: 2, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>
-                In Meeting ({remoteVideos.length + 1})
+                In Meeting ({remotePeerIds.length + 1})
             </Typography>
 
             {/* Local User Item */}
@@ -33,9 +39,8 @@ export function ParticipantList({
             </Box>
 
             {/* Remote Participants */}
-            {remoteVideos.map((vid, idx) => {
-                const sId = vid.socketId || idx;
-                const name = peerNames[vid.socketId] || `Participant ${idx + 1}`;
+            {remotePeerIds.map((sId, idx) => {
+                const name = peerNames[sId] || `Participant ${idx + 1}`;
                 return (
                     <Box
                         key={sId}
@@ -63,7 +68,7 @@ export function ParticipantList({
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <IconButton
                                     size="small"
-                                    onClick={() => onHostMute(vid.socketId)}
+                                    onClick={() => onHostMute(sId)}
                                     sx={{ color: '#FB7185' }}
                                     title="Mute Participant"
                                 >
@@ -71,7 +76,7 @@ export function ParticipantList({
                                 </IconButton>
                                 <IconButton
                                     size="small"
-                                    onClick={() => onHostKick(vid.socketId)}
+                                    onClick={() => onHostKick(sId)}
                                     sx={{ color: '#94A3B8' }}
                                     title="Remove Participant"
                                 >

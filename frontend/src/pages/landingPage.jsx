@@ -3,15 +3,7 @@ import "../App.css"
 import { useNavigate } from 'react-router-dom'
 import {
     logoImg,
-    landingHeroImg,
-    featureVideoImg,
-    featureScreenImg,
-    featurePollImg,
-    featureModerationImg,
-    featureNotesImg,
-    featureReactionsImg,
-    featureScheduleImg,
-    featureHistoryImg
+    landingHeroImg
 } from '../assets/images'
 import VideocamIcon from '@mui/icons-material/Videocam';
 import SecurityIcon from '@mui/icons-material/Security';

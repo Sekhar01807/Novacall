@@ -130,7 +130,7 @@ function ProfileComponent() {
             }
         };
         load();
-    }, [userData]);
+    }, [userData, fetchUserProfile]);
 
     const handleSave = async () => {
         try {

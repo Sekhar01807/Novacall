@@ -30,33 +30,31 @@ test.describe('Flagship End-to-End User Journey: Register → Login → Create M
       await confirmPasswordInput.fill(testUser.password);
     }
 
-    const registerBtn = page.getByRole('button', { name: /Create Account|Sign Up|Register/i });
+    const registerBtn = page.getByRole('button', { name: 'Create Account', exact: true });
     await registerBtn.click();
 
     // Verify registration confirmation (toast or switch to Sign In mode)
-    await page.waitForTimeout(1000);
+    await expect(page.locator('body')).toContainText(/success|registered|sign in|welcome/i, { timeout: 8000 });
 
     // -------------------------------------------------------------
     // 2. LOGIN: Authenticate with new credentials
     // -------------------------------------------------------------
-    // Ensure on Sign In view
-    const signInHeading = page.locator('text=Sign In').or(page.locator('text=Welcome Back'));
-    if (!await signInHeading.isVisible()) {
-      await page.goto('/auth?mode=signin');
-    }
+    // Navigate fresh to signin to avoid stale form state after registration
+    await page.goto('/auth?mode=signin');
 
-    const loginEmailInput = page.getByLabel(/Email|Username/i).first();
+    const loginEmailInput = page.getByLabel(/Email Address|Email/i).first();
     const loginPasswordInput = page.getByLabel(/^Password/i);
 
+    await expect(loginEmailInput).toBeVisible();
     await loginEmailInput.fill(testUser.email);
     await loginPasswordInput.fill(testUser.password);
 
-    const loginBtn = page.getByRole('button', { name: /Sign In|Log In/i });
+    const loginBtn = page.locator('form').getByRole('button', { name: 'Sign In', exact: true });
     await loginBtn.click();
 
     // Verify redirection to Dashboard
     await page.waitForURL('**/home', { timeout: 10000 });
-    await expect(page.locator('text=NovaCall Dashboard').or(page.locator('text=Dashboard'))).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'NovaCall Dashboard' })).toBeVisible();
 
     // -------------------------------------------------------------
     // 3. CREATE MEETING: Initialize meeting room from Dashboard
@@ -112,7 +110,7 @@ test.describe('Flagship End-to-End User Journey: Register → Login → Create M
       await peopleBtn.click();
 
       // Verify Participant List tab shows authenticated user with Host badge
-      await expect(page.locator(`text=${testUser.name} (You)`).or(page.locator(`text=${testUser.name}`)).or(page.locator('text=(You)'))).toBeVisible();
+      await expect(page.locator(`text=${testUser.name} (You)`).or(page.locator(`text=${testUser.name}`)).or(page.locator('text=(You)')).first()).toBeVisible();
 
       // Switch to Chat tab in the side drawer
       const chatTab = page.getByRole('tab', { name: /Chat/i });
