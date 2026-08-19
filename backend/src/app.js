@@ -209,8 +209,10 @@ const connectDB = async () => {
         return;
     }
     try {
-        await mongoose.connect(dbUrl);
-        logger.info("Connected to MongoDB Atlas successfully");
+        await mongoose.connect(dbUrl, {
+            dbName: process.env.DB_NAME || "novacall"
+        });
+        logger.info(`Connected to MongoDB successfully (Database: "${mongoose.connection.name}")`);
     } catch (error) {
         logger.error("Failed to connect to MongoDB:", error);
     }

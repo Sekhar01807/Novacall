@@ -176,9 +176,7 @@ const userSchema = new Schema({
     }
 }, { timestamps: true });
 
-// Explicit database indexes for performance
-userSchema.index({ email: 1 }, { unique: true });
-userSchema.index({ username: 1 }, { unique: true });
+// Indexes for performance (email and username indexes are created via unique: true in schema definition)
 userSchema.index({ createdAt: -1 });
 
 const User = model("User", userSchema);
