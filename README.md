@@ -135,7 +135,11 @@ Novacall/
 │       └── ci.yml                 # Node 22 CI pipeline (npm ci, tests, build)
 ├── backend/
 │   ├── src/
-│   │   ├── controllers/          # user.controller.js (IDOR-protected REST endpoints)
+│   │   ├── controllers/          # Modularized REST controllers
+│   │   │   ├── user.controller.js          # Authentication (login, register) & root re-exports
+│   │   │   ├── profile.controller.js       # Profile CRUD, DTO builder & session revocation
+│   │   │   ├── passwordReset.controller.js # Cryptographic token generation & verification
+│   │   │   └── meetingHistory.controller.js# Activity pagination, schedule CRUD & IDOR queries
 │   │   ├── docs/                 # OpenAPI 3.0 specification & Swagger UI
 │   │   ├── middleware/           # auth.middleware.js (Bearer token verification)
 │   │   ├── models/               # UserModel.js, meetingModel.js, scheduledMeetingModel.js
@@ -146,7 +150,7 @@ Novacall/
 │   │   │   ├── roomState.js      # In-memory room, host, participant, and message store
 │   │   │   └── index.js          # Socket initialization & event routing
 │   │   ├── utils/                # jwt.js, logger.js, roomCodeGenerator.js, errorCodes.js
-│   │   └── app.js                # Server entry point & graceful shutdown
+│   │   └── app.js                # Server entry point, hardened CSP & rate limiter
 │   ├── tests/
 │   │   ├── auth.test.js          # Authentication, token tampering, and reset hash tests
 │   │   ├── meetings.test.js      # Scheduled meetings & atomic IDOR ownership tests
@@ -160,7 +164,11 @@ Novacall/
 │   ├── src/
 │   │   ├── contexts/             # AuthContext.jsx
 │   │   ├── pages/                # Landing, Auth, Home, History, Profile, 404, VideoMeet
-│   │   │   └── videoMeet/        # Modular components, hooks, and socket services
+│   │   │   └── videoMeet/        # Modularized meeting architecture
+│   │   │       ├── components/   # LobbyView, MeetingModals, MeetingControls, VideoGrid, ChatPanel, etc.
+│   │   │       ├── hooks/        # useWebRTCConnection.js, useMediaDevices.js
+│   │   │       ├── services/     # socketService.js, meetingService.js
+│   │   │       └── VideoMeet.jsx # Clean high-level orchestrator (<220 lines)
 │   │   ├── styles/               # CSS modules & themes
 │   │   ├── utils/                # withAuth.jsx
 │   │   ├── App.jsx               # App routing
@@ -384,6 +392,8 @@ The backend exposes a health endpoint for automated container orchestration, loa
 ## 🔮 Production Roadmap
 
 - [x] **Modular Socket.IO Architecture**: Refactored signaling, room state, chat, media, and moderation handlers.
+- [x] **Modular REST & Meeting Architecture**: Decomposed controllers (`profile`, `passwordReset`, `meetingHistory`, `user`) and streamlined `VideoMeet` orchestration hooks (`useWebRTCConnection`, `LobbyView`, `MeetingModals`).
+- [x] **Hardened Security & Tightened CSP**: Removal of permissive script `unsafe-inline` and wildcard `connect-src` directives; documented single-instance in-memory rate limiting.
 - [x] **IDOR-Protected Resource Layer**: Atomic query ownership verification across all user data endpoints.
 - [x] **Flagship Playwright E2E Suite**: End-to-end lifecycle verification from user registration to meeting moderation.
 - [ ] **SFU Media Gateway**: Transitioning to mediasoup / Pion for large enterprise conference routing.
