@@ -414,6 +414,11 @@ NovaCall includes interactive Swagger UI documentation and health monitoring:
 | `FRONTEND_URL` | No | `http://localhost:5173` | Allowed CORS origins (comma-separated for multiple origins) |
 | `MAX_ROOM_CAPACITY` | No | `6` | Maximum concurrent participants allowed per meeting room |
 | `NODE_ENV` | No | `development` | Runtime environment (`development`, `production`, `test`) |
+| `SMTP_HOST` | No | `smtp.gmail.com` | SMTP email server host for password reset dispatches |
+| `SMTP_PORT` | No | `587` | SMTP server port (`587` for STARTTLS, `465` for SSL/TLS) |
+| `SMTP_USER` | No | — | SMTP username / sender email address |
+| `SMTP_PASS` | No | — | SMTP app password or secret key |
+| `EMAIL_FROM` | No | `"NovaCall Security" <...>` | Sender display name and email address header |
 
 ### Frontend Configuration (`frontend/.env`)
 
@@ -438,11 +443,12 @@ NovaCall includes interactive Swagger UI documentation and health monitoring:
 
 ---
 
-## Architecture Trade-offs & Limitations
+## Architecture Trade-offs & Deployment Scope
 
 1. **Full-Mesh P2P Topology (6-Participant Capacity)**: Video and audio streams are exchanged directly peer-to-peer ($N-1$ streams per participant). The server enforces a hard limit of 6 participants per room to preserve client bandwidth and CPU usage. For larger rooms (20+ participants), transitioning to a Selective Forwarding Unit (SFU) architecture is recommended.
-2. **In-Memory Active Room State**: Meeting presence, participant metadata, and sliding-window rate limit counters are maintained in-memory for sub-millisecond signaling latency. Scaling horizontally across multi-instance clusters requires migrating room state to a shared Redis cluster (`@socket.io/redis-adapter` and Redis key-value stores).
-3. **Password Reset Development Boundary**: In local/testing mode, verification codes are returned in mock response payloads to facilitate automated test execution. In production mode, codes are dispatched out-of-band via external transactional email services.
+2. **Single-Instance In-Memory State**: Active meeting rooms, participant presence, and sliding-window rate limit counters are maintained in Node process memory for ultra-low latency signaling without database overhead. This single-node model is optimized for single-instance container deployments. For clustered horizontal scaling, state must be migrated to a shared Redis cluster (`@socket.io/redis-adapter` and Redis hash stores).
+3. **Dual Authentication Boundary (HttpOnly Cookies + Bearer Tokens)**: The backend sets secure `HttpOnly` session cookies on authentication to mitigate XSS vector token theft while retaining Bearer header compatibility for decoupled cross-origin frontend hosting (e.g. Vercel + Render).
+4. **Email Dispatching**: Password reset verification codes are dispatched via Nodemailer SMTP in production, with automatic development logger fallback during local testing.
 
 ---
 
@@ -450,13 +456,13 @@ NovaCall includes interactive Swagger UI documentation and health monitoring:
 
 - [x] Modular Socket.IO architecture (signaling, room state, chat, media, and moderation handlers)
 - [x] Modular REST controllers (`profile`, `passwordReset`, `meetingHistory`, `user`)
-- [x] Hardened CSP headers and strict CORS configuration
+- [x] Hardened CSP headers, fail-closed CORS, and HttpOnly session cookies
 - [x] IDOR protection and atomic resource ownership across all endpoints
+- [x] Nodemailer SMTP email dispatch service with responsive HTML templates
 - [x] Playwright E2E flagship workflow test suite
 - [x] Centralized API error codes and request correlation IDs (`X-Request-Id`)
 - [ ] SFU Media Gateway integration (mediasoup / Pion) for high-capacity rooms
 - [ ] Distributed Redis Pub/Sub adapter for multi-instance horizontal scaling
-- [ ] Production transactional email integration (Resend / AWS SES)
 
 ---
 

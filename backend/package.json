@@ -15,12 +15,14 @@
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
     "http-status": "^2.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^9.2.1",
+    "nodemailer": "^6.9.16",
     "nodemon": "^3.1.13",
     "socket.io": "^4.8.3"
   },

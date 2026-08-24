@@ -5,6 +5,7 @@ import { User } from "../models/UserModel.js";
 import { ERROR_CODES, formatErrorResponse, formatSuccessResponse } from "../utils/errorCodes.js";
 import { logger } from "../utils/logger.js";
 import { validateForgotPassword, validateResetPassword } from "../utils/validators.js";
+import { sendPasswordResetEmail, isEmailConfigured } from "../services/email.service.js";
 
 // In-memory hashed verification store: email => { hashedCode, expires, attempts }
 const resetCodes = new Map();
@@ -24,8 +25,9 @@ setInterval(() => {
  * Security hardening:
  * - Generates cryptographically secure 6-digit code.
  * - Stores SHA-256 hashed code with 15-minute expiration and max 5 verification attempts.
+ * - Dispatches verification email via Nodemailer (with dev console fallback).
  * - Generic response prevents user/email enumeration.
- * - In production mode, code is NEVER returned in response.
+ * - In production mode, code is NEVER returned in HTTP response payload.
  */
 export const forgotPassword = async (req, res) => {
     const validation = validateForgotPassword(req.body);
@@ -41,7 +43,7 @@ export const forgotPassword = async (req, res) => {
         const user = await User.findOne({ email });
 
         const isProduction = process.env.NODE_ENV === "production";
-        const genericMessage = isProduction
+        const genericMessage = isProduction || isEmailConfigured()
             ? "If an account exists with this email, a verification code has been dispatched."
             : "Password reset code generated. (Demo Notice: Verification code provided in payload for development testing only.)";
 
@@ -75,6 +77,14 @@ export const forgotPassword = async (req, res) => {
 
         logger.info(`Password reset code generated and hashed for: ${email}`, { requestId: req.id });
 
+        // Dispatch real email via Nodemailer
+        await sendPasswordResetEmail({
+            toEmail: email,
+            username: user.name || user.username || "User",
+            resetCode: code,
+            requestId: req.id
+        });
+
         const responsePayload = {
             success: true,
             message: genericMessage,
@@ -82,8 +92,8 @@ export const forgotPassword = async (req, res) => {
             requestId: req.id
         };
 
-        // NEVER expose raw reset code in production
-        if (!isProduction && !process.env.SMTP_HOST) {
+        // NEVER expose raw reset code in production or when live email is configured
+        if (!isProduction && !isEmailConfigured()) {
             responsePayload.resetCode = code;
         }
 

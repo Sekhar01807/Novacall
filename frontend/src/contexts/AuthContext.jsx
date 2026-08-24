@@ -8,7 +8,8 @@ import server from "../environment";
 export const AuthContext = createContext({});
 
 const client = axios.create({
-    baseURL: `${server}/api/v1/users`
+    baseURL: `${server}/api/v1/users`,
+    withCredentials: true
 });
 
 // Automatically attach Authorization Bearer token header to all requests

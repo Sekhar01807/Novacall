@@ -120,6 +120,12 @@ export const changePassword = async (req, res) => {
         user.tokenVersion = (user.tokenVersion || 0) + 1;
         await user.save();
 
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+        });
+
         res.status(httpStatus.OK).json(
             formatSuccessResponse(null, "Password updated successfully. Existing sessions have been revoked.", req.id)
         );
@@ -139,6 +145,13 @@ export const signOutAllDevices = async (req, res) => {
             user.tokenVersion = (user.tokenVersion || 0) + 1;
             await user.save();
         }
+
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+        });
+
         res.status(httpStatus.OK).json(
             formatSuccessResponse(null, "Signed out of all devices successfully. Existing sessions have been revoked.", req.id)
         );
@@ -166,6 +179,12 @@ export const deleteAccount = async (req, res) => {
             await Meeting.deleteMany({ user_id: user.username });
             await ScheduledMeeting.deleteMany({ user_id: user.username });
         }
+
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+        });
 
         res.status(httpStatus.OK).json(
             formatSuccessResponse(null, "Account deleted successfully", req.id)

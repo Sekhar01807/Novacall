@@ -6,6 +6,7 @@ import { logger } from "../utils/logger.js";
 import { generateSecureRoomCode } from "../utils/roomCodeGenerator.js";
 import { normalizeRoomCode } from "../sockets/roomState.js";
 import { validateScheduledMeeting, validateMeetingCode } from "../utils/validators.js";
+import { sendMeetingScheduleEmail } from "../services/email.service.js";
 
 /**
  * Get User Meeting History with Pagination & Search Support
@@ -118,6 +119,25 @@ export const createScheduledMeeting = async (req, res) => {
         });
 
         await newMeeting.save();
+
+        // Asynchronously dispatch styled confirmation email to host (and invitees if provided)
+        sendMeetingScheduleEmail({
+            toEmail: user.email,
+            hostName: user.name || user.username || "Host",
+            title: newMeeting.title,
+            meetingCode: newMeeting.meeting_code,
+            scheduledDate: newMeeting.scheduled_date,
+            scheduledTime: newMeeting.scheduled_time,
+            duration: newMeeting.duration,
+            timeZone: newMeeting.time_zone,
+            description: newMeeting.description,
+            invitees: req.body.invitees,
+            isHostConfirmation: true,
+            requestId: req.id
+        }).catch((err) => {
+            logger.warn("Scheduled meeting email async dispatch warning:", { error: err.message, requestId: req.id });
+        });
+
         res.status(httpStatus.CREATED).json({
             success: true,
             message: "Meeting scheduled successfully",

@@ -5,6 +5,7 @@ import { signJWT } from "../utils/jwt.js";
 import { ERROR_CODES, formatErrorResponse, formatSuccessResponse } from "../utils/errorCodes.js";
 import { logger } from "../utils/logger.js";
 import { validateLogin, validateRegister } from "../utils/validators.js";
+import { sendWelcomeEmail } from "../services/email.service.js";
 
 // Re-export modular controllers for full backward compatibility
 export * from "./profile.controller.js";
@@ -74,6 +75,14 @@ const login = async (req, res) => {
             tokenVersion: user.tokenVersion || 0
         });
 
+        // Set HttpOnly session cookie for enhanced XSS protection
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
         return res.status(httpStatus.OK).json(
             formatSuccessResponse({
                 token: token,
@@ -133,6 +142,24 @@ const register = async (req, res) => {
             username: newUser.username,
             email: newUser.email,
             tokenVersion: 0
+        });
+
+        // Set HttpOnly session cookie for enhanced XSS protection
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
+        // Asynchronously dispatch styled Welcome Email to the new user
+        sendWelcomeEmail({
+            toEmail: newUser.email,
+            name: newUser.name,
+            username: newUser.username,
+            requestId: req.id
+        }).catch((err) => {
+            logger.warn("Welcome email async dispatch warning:", { error: err.message, requestId: req.id });
         });
 
         res.status(httpStatus.CREATED).json(

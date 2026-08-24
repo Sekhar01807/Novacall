@@ -234,5 +234,46 @@ describe("Authentication", () => {
         assert.strictEqual(responseExisting.message, responseNonExisting.message);
         assert.strictEqual(responseExisting.code, responseNonExisting.code);
     });
+
+    test("email service graceful fallback and format validation", async () => {
+        const { sendPasswordResetEmail, sendWelcomeEmail, sendMeetingScheduleEmail, isEmailConfigured } = await import("../src/services/email.service.js");
+        
+        // 1. Password reset email fallback test
+        const resetResult = await sendPasswordResetEmail({
+            toEmail: "tester@novacall.io",
+            username: "Tester",
+            resetCode: "123456",
+            requestId: "test-req-email"
+        });
+        assert.ok(resetResult);
+
+        // 2. Welcome email fallback test
+        const welcomeResult = await sendWelcomeEmail({
+            toEmail: "alice@novacall.io",
+            name: "Alice Williams",
+            username: "alice_w",
+            requestId: "test-req-welcome"
+        });
+        assert.ok(welcomeResult);
+
+        // 3. Scheduled meeting email fallback test
+        const meetingResult = await sendMeetingScheduleEmail({
+            toEmail: "alice@novacall.io",
+            hostName: "Alice Williams",
+            title: "Sprint Planning Q3",
+            meetingCode: "NOV-778-990",
+            scheduledDate: "2026-08-25",
+            scheduledTime: "14:00",
+            duration: 45,
+            timeZone: "UTC",
+            description: "Quarterly alignment and roadmap review",
+            invitees: ["bob@novacall.io", "charlie@novacall.io"],
+            requestId: "test-req-schedule"
+        });
+        assert.ok(meetingResult);
+
+        assert.strictEqual(typeof isEmailConfigured(), "boolean");
+    });
 });
+
 

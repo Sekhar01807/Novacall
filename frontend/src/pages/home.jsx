@@ -27,6 +27,10 @@ function HomeComponent() {
     const [scheduledTitle, setScheduledTitle] = useState("");
     const [scheduledDate, setScheduledDate] = useState("");
     const [scheduledTime, setScheduledTime] = useState("");
+    const [scheduledDuration, setScheduledDuration] = useState(45);
+    const [scheduledTimeZone, setScheduledTimeZone] = useState("IST");
+    const [scheduledDescription, setScheduledDescription] = useState("");
+    const [scheduledInvitees, setScheduledInvitees] = useState("");
     const [createdScheduleLink, setCreatedScheduleLink] = useState("");
     const [toastMessage, setToastMessage] = useState("");
     const [toastOpen, setToastOpen] = useState(false);
@@ -102,17 +106,21 @@ function HomeComponent() {
             const link = `${window.location.origin}/${code}`;
             setCreatedScheduleLink(link);
             
-            // Item 11: Persist scheduled meeting to database
+            // Persist scheduled meeting to database and dispatch confirmation emails
             await createScheduledMeeting({
                 title: scheduledTitle,
                 meeting_code: code,
                 date: scheduledDate || new Date().toISOString(),
                 time: scheduledTime || "10:00 AM",
                 scheduled_date: scheduledDate || new Date().toISOString(),
-                scheduled_time: scheduledTime || "10:00 AM"
+                scheduled_time: scheduledTime || "10:00 AM",
+                duration: scheduledDuration || 45,
+                time_zone: scheduledTimeZone || "IST",
+                description: scheduledDescription || "",
+                invitees: scheduledInvitees || ""
             });
 
-            setToastMessage(`Scheduled "${scheduledTitle}" successfully!`);
+            setToastMessage(`Scheduled "${scheduledTitle}" successfully! Confirmation email dispatched.`);
             setToastOpen(true);
             loadDashboardData();
         } catch {
@@ -435,34 +443,51 @@ function HomeComponent() {
                                     select
                                     fullWidth
                                     label="Duration"
-                                    defaultValue="1 hour"
+                                    value={scheduledDuration}
+                                    onChange={e => setScheduledDuration(Number(e.target.value))}
                                     sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
                                     SelectProps={{ native: true }}
                                 >
-                                    <option value="30 mins">30 mins</option>
-                                    <option value="1 hour">1 hour</option>
-                                    <option value="2 hours">2 hours</option>
+                                    <option value={15}>15 mins</option>
+                                    <option value={30}>30 mins</option>
+                                    <option value={45}>45 mins</option>
+                                    <option value={60}>1 hour</option>
+                                    <option value={120}>2 hours</option>
                                 </TextField>
                                 <TextField
                                     select
                                     fullWidth
                                     label="Time Zone"
-                                    defaultValue="IST"
+                                    value={scheduledTimeZone}
+                                    onChange={e => setScheduledTimeZone(e.target.value)}
                                     sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
                                     SelectProps={{ native: true }}
                                 >
                                     <option value="IST">(GMT+05:30) India Standard Time</option>
                                     <option value="UTC">(UTC) Coordinated Universal Time</option>
                                     <option value="EST">(EST) Eastern Standard Time</option>
+                                    <option value="PST">(PST) Pacific Standard Time</option>
                                 </TextField>
                             </Box>
 
                             <TextField
                                 fullWidth
+                                label="Invite Guests (Optional Email List)"
+                                value={scheduledInvitees}
+                                onChange={e => setScheduledInvitees(e.target.value)}
+                                placeholder="colleague@example.com, team@novacall.io"
+                                sx={{ mb: 2.5, '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                                helperText="We'll send meeting invites & calendar links automatically."
+                            />
+
+                            <TextField
+                                fullWidth
                                 multiline
-                                rows={3}
-                                label="Add Description (Optional)"
-                                placeholder="Let's review the latest designs and share feedback."
+                                rows={2.5}
+                                label="Add Agenda / Description (Optional)"
+                                value={scheduledDescription}
+                                onChange={e => setScheduledDescription(e.target.value)}
+                                placeholder="Let's review the latest designs and discuss next steps."
                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
                             />
                         </Box>

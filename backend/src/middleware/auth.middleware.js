@@ -5,19 +5,25 @@ import { ERROR_CODES, formatErrorResponse } from "../utils/errorCodes.js";
 
 export const authMiddleware = async (req, res, next) => {
     try {
+        let token = null;
         const authHeader = req.headers.authorization;
 
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+        } else if (req.cookies && (req.cookies.token || req.cookies.jwt)) {
+            token = req.cookies.token || req.cookies.jwt;
+        }
+
+        if (!token) {
             return res.status(httpStatus.UNAUTHORIZED).json(
                 formatErrorResponse(
-                    "Access denied. Bearer authentication token required in Authorization header.",
+                    "Access denied. Authentication token required in Authorization header or session cookie.",
                     ERROR_CODES.AUTH_TOKEN_REQUIRED,
                     req.id
                 )
             );
         }
 
-        const token = authHeader.substring(7);
         const decoded = verifyJWT(token);
 
         if (!decoded) {
