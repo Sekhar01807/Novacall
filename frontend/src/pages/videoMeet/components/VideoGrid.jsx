@@ -1,5 +1,6 @@
 import React from "react";
 import { VideoTile } from "./VideoTile";
+import { decodeHTMLEntities } from "../../../utils/textUtils";
 import styles from "../../../styles/videoComponent.module.css";
 
 export function VideoGrid({
@@ -23,12 +24,15 @@ export function VideoGrid({
         ...remoteVideos.map(v => v.socketId)
     ])).filter(Boolean);
 
+    const cleanLocalUsername = decodeHTMLEntities(localUsername) || "User";
+
     const remotePeers = remotePeerIds.map((peerId, idx) => {
         const vid = remoteVideos.find(v => v.socketId === peerId);
+        const rawName = peerNames[peerId] || `Participant ${idx + 1}`;
         return {
             socketId: peerId,
             stream: vid ? vid.stream : null,
-            name: peerNames[peerId] || `Participant ${idx + 1}`,
+            name: decodeHTMLEntities(rawName),
             isVideoMuted: vid ? (peerMediaStates[peerId]?.videoMuted ?? false) : true,
             isAudioMuted: peerMediaStates[peerId]?.audioMuted ?? false,
             quality: peerQualities[peerId]?.quality || "Excellent",
@@ -60,7 +64,7 @@ export function VideoGrid({
                     <VideoTile
                         stream={localStream}
                         isLocal={true}
-                        username={localUsername}
+                        username={cleanLocalUsername}
                         isAudioMuted={isLocalAudioMuted}
                         isVideoMuted={isLocalVideoMuted}
                         quality={localQuality}
@@ -90,7 +94,7 @@ export function VideoGrid({
             <VideoTile
                 stream={localStream}
                 isLocal={true}
-                username={localUsername}
+                username={cleanLocalUsername}
                 isAudioMuted={isLocalAudioMuted}
                 isVideoMuted={isLocalVideoMuted}
                 quality={localQuality}

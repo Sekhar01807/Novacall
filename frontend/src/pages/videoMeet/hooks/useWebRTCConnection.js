@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { socketService } from "../services/socketService";
+import { decodeHTMLEntities } from "../../../utils/textUtils";
 
 export const peerConfigConnections = {
     iceServers: [
@@ -327,7 +328,8 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
 
             setVideos(prev => prev.filter(v => v.socketId !== id));
             setPeerNames(prev => {
-                const name = prev[id] || "A participant";
+                const rawName = prev[id] || "A participant";
+                const name = decodeHTMLEntities(rawName);
                 setJoinToast(`${name} left the meeting`);
                 setTimeout(() => setJoinToast(""), 3000);
                 const updated = { ...prev };

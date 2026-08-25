@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Typography, Avatar, IconButton, Button, Chip } from "@mui/material";
 import MicOffIcon from "@mui/icons-material/MicOff";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { decodeHTMLEntities } from "../../../utils/textUtils";
 
 export function ParticipantList({
     localUsername,
@@ -17,6 +18,8 @@ export function ParticipantList({
         ...remoteVideos.map(v => v.socketId)
     ])).filter(Boolean);
 
+    const cleanLocalUsername = decodeHTMLEntities(localUsername) || "User";
+
     return (
         <Box sx={{ p: 2 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#94A3B8', mb: 2, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>
@@ -27,10 +30,10 @@ export function ParticipantList({
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.2, border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 2.5, mb: 1, bgcolor: 'rgba(255, 255, 255, 0.05)' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                     <Avatar sx={{ bgcolor: '#3B82F6', width: 32, height: 32, fontSize: '0.8rem', fontWeight: 700 }}>
-                        {localUsername.charAt(0).toUpperCase()}
+                        {cleanLocalUsername.charAt(0).toUpperCase()}
                     </Avatar>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: '#F8FAFC' }}>
-                        {localUsername} (You)
+                        {cleanLocalUsername} (You)
                     </Typography>
                 </Box>
                 {isHost && (
@@ -40,7 +43,8 @@ export function ParticipantList({
 
             {/* Remote Participants */}
             {remotePeerIds.map((sId, idx) => {
-                const name = peerNames[sId] || `Participant ${idx + 1}`;
+                const rawName = peerNames[sId] || `Participant ${idx + 1}`;
+                const name = decodeHTMLEntities(rawName);
                 return (
                     <Box
                         key={sId}

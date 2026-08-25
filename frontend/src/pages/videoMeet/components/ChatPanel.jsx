@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Box, Typography, TextField, Button } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
+import { decodeHTMLEntities } from "../../../utils/textUtils";
 import styles from "../../../styles/videoComponent.module.css";
 
 export function ChatPanel({ messages, onSendMessage }) {
@@ -13,7 +14,8 @@ export function ChatPanel({ messages, onSendMessage }) {
         setMessageText("");
     };
 
-    const renderFormattedText = (text) => {
+    const renderFormattedText = (rawText) => {
+        const text = decodeHTMLEntities(rawText);
         if (!text) return null;
         const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
         const parts = text.split(urlRegex);
@@ -45,7 +47,7 @@ export function ChatPanel({ messages, onSendMessage }) {
                     messages.map((item, index) => (
                         <div className={styles.chatBubble} key={index}>
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.3 }}>
-                                <p className={styles.chatSender}>{item.sender || 'Participant'}</p>
+                                <p className={styles.chatSender}>{decodeHTMLEntities(item.sender) || 'Participant'}</p>
                                 <Typography variant="caption" sx={{ color: '#94A3B8', fontSize: '0.65rem' }}>
                                     {item.timestamp}
                                 </Typography>
