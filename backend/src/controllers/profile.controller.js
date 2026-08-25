@@ -7,6 +7,7 @@ import { ScheduledMeeting } from "../models/scheduledMeetingModel.js";
 import { ERROR_CODES, formatErrorResponse, formatSuccessResponse } from "../utils/errorCodes.js";
 import { logger } from "../utils/logger.js";
 import { validateChangePassword } from "../utils/validators.js";
+import { asyncHandler, ApiError } from "../utils/apiError.js";
 
 /**
  * Public User Profile DTO Builder
@@ -49,54 +50,40 @@ export const buildUserProfileDTO = (user, requestId = null) => ({
     ...(requestId ? { requestId } : {})
 });
 
-export const getUserProfile = async (req, res) => {
-    try {
-        const user = req.user;
-        res.status(httpStatus.OK).json(buildUserProfileDTO(user, req.id));
-    } catch (e) {
-        logger.error("Get profile error", { error: e.message, requestId: req.id });
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
-            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
-        );
-    }
-};
+export const getUserProfile = asyncHandler(async (req, res) => {
+    const user = req.user;
+    res.status(httpStatus.OK).json(buildUserProfileDTO(user, req.id));
+});
 
-export const updateUserProfile = async (req, res) => {
-    try {
-        const user = req.user;
-        const allowedFields = [
-            "name", "jobTitle", "company", "profilePic", "themeMode",
-            "defaultMicOff", "defaultCamOff", "selectedCam", "selectedMic",
-            "selectedSpeaker", "phone", "country", "timeZone", "statusMsg",
-            "statusState", "pronouns", "showJobTitle", "showCompany",
-            "showProfilePhoto", "hdVideo", "mirrorVideo", "notifyInvites",
-            "notifyReminders", "notifyJoins", "notifyLeaves", "emailNotifs",
-            "productUpdates", "timeFormat", "accentColor"
-        ];
+export const updateUserProfile = asyncHandler(async (req, res) => {
+    const user = req.user;
+    const allowedFields = [
+        "name", "jobTitle", "company", "profilePic", "themeMode",
+        "defaultMicOff", "defaultCamOff", "selectedCam", "selectedMic",
+        "selectedSpeaker", "phone", "country", "timeZone", "statusMsg",
+        "statusState", "pronouns", "showJobTitle", "showCompany",
+        "showProfilePhoto", "hdVideo", "mirrorVideo", "notifyInvites",
+        "notifyReminders", "notifyJoins", "notifyLeaves", "emailNotifs",
+        "productUpdates", "timeFormat", "accentColor"
+    ];
 
-        allowedFields.forEach(field => {
-            if (req.body[field] !== undefined) {
-                user[field] = req.body[field];
-            }
-        });
+    allowedFields.forEach(field => {
+        if (req.body[field] !== undefined) {
+            user[field] = req.body[field];
+        }
+    });
 
-        await user.save();
-        const safeProfile = buildUserProfileDTO(user);
-        res.status(httpStatus.OK).json({
-            success: true,
-            message: "Profile updated successfully",
-            profile: safeProfile,
-            requestId: req.id
-        });
-    } catch (e) {
-        logger.error("Update profile error", { error: e.message, requestId: req.id });
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
-            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
-        );
-    }
-};
+    await user.save();
+    const safeProfile = buildUserProfileDTO(user);
+    res.status(httpStatus.OK).json({
+        success: true,
+        message: "Profile updated successfully",
+        profile: safeProfile,
+        requestId: req.id
+    });
+});
 
-export const changePassword = async (req, res) => {
+export const changePassword = asyncHandler(async (req, res) => {
     const validation = validateChangePassword(req.body);
     if (!validation.isValid) {
         return res.status(httpStatus.BAD_REQUEST).json(
@@ -106,64 +93,50 @@ export const changePassword = async (req, res) => {
 
     const { currentPassword, newPassword } = validation.data;
 
-    try {
-        const user = await User.findById(req.user._id);
-        const isMatch = await bcrypt.compare(currentPassword, user.password);
-        if (!isMatch) {
-            return res.status(httpStatus.UNAUTHORIZED).json(
-                formatErrorResponse("Current password is incorrect", ERROR_CODES.AUTH_INVALID_CREDENTIALS, req.id)
-            );
-        }
+    const user = await User.findById(req.user._id);
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+        return res.status(httpStatus.UNAUTHORIZED).json(
+            formatErrorResponse("Current password is incorrect", ERROR_CODES.AUTH_INVALID_CREDENTIALS, req.id)
+        );
+    }
 
-        user.password = await bcrypt.hash(newPassword, 10);
+    user.password = await bcrypt.hash(newPassword, 10);
+    // Revoke all existing sessions by incrementing token version
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+
+    res.clearCookie("token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+    });
+
+    res.status(httpStatus.OK).json(
+        formatSuccessResponse(null, "Password updated successfully. Existing sessions have been revoked.", req.id)
+    );
+});
+
+export const signOutAllDevices = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id);
+    if (user) {
         // Revoke all existing sessions by incrementing token version
         user.tokenVersion = (user.tokenVersion || 0) + 1;
         await user.save();
-
-        res.clearCookie("token", {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
-        });
-
-        res.status(httpStatus.OK).json(
-            formatSuccessResponse(null, "Password updated successfully. Existing sessions have been revoked.", req.id)
-        );
-    } catch (e) {
-        logger.error("Change password error", { error: e.message, requestId: req.id });
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
-            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
-        );
     }
-};
 
-export const signOutAllDevices = async (req, res) => {
-    try {
-        const user = await User.findById(req.user._id);
-        if (user) {
-            // Revoke all existing sessions by incrementing token version
-            user.tokenVersion = (user.tokenVersion || 0) + 1;
-            await user.save();
-        }
+    res.clearCookie("token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+    });
 
-        res.clearCookie("token", {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
-        });
+    res.status(httpStatus.OK).json(
+        formatSuccessResponse(null, "Signed out of all devices successfully. Existing sessions have been revoked.", req.id)
+    );
+});
 
-        res.status(httpStatus.OK).json(
-            formatSuccessResponse(null, "Signed out of all devices successfully. Existing sessions have been revoked.", req.id)
-        );
-    } catch (e) {
-        logger.error("Sign out all devices error", { error: e.message, requestId: req.id });
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
-            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
-        );
-    }
-};
-
-export const deleteAccount = async (req, res) => {
+export const deleteAccount = asyncHandler(async (req, res) => {
     const session = await mongoose.startSession().catch(() => null);
     try {
         const user = req.user;
@@ -194,9 +167,6 @@ export const deleteAccount = async (req, res) => {
             await session.abortTransaction().catch(() => {});
             session.endSession();
         }
-        logger.error("Delete account error", { error: e.message, requestId: req.id });
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json(
-            formatErrorResponse(e.message, ERROR_CODES.INTERNAL_SERVER_ERROR, req.id)
-        );
+        throw e;
     }
-};
+});
