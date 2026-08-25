@@ -10,6 +10,7 @@ import UsersRoutes from "./routes/UsersRoutes.js";
 import { openapiSpecification, renderSwaggerHTML } from "./docs/swaggerSpec.js";
 import { logger } from "./utils/logger.js";
 import { requestIdMiddleware } from "./middleware/requestId.middleware.js";
+import { errorHandler, notFoundHandler } from "./middleware/error.middleware.js";
 import { ERROR_CODES, formatErrorResponse } from "./utils/errorCodes.js";
 import { validateJwtSecretAtStartup } from "./utils/jwt.js";
 
@@ -186,22 +187,11 @@ app.get("/", (req, res) => {
     });
 });
 
-// Centralized Global Error Handler with Production Sanitization
-app.use((err, req, res, next) => {
-    logger.error("Unhandled Application Error", { error: err.message, stack: err.stack, requestId: req?.id });
-    const statusCode = err.status || err.statusCode || 500;
-    const errorCode = err.code || ERROR_CODES.INTERNAL_SERVER_ERROR;
+// 5. 404 Route Not Found Handler (catches unmatched API routes)
+app.use(notFoundHandler);
 
-    // In production, never expose internal database/system error messages on 500 errors
-    const isProduction = process.env.NODE_ENV === "production";
-    const clientMessage = (isProduction && statusCode === 500)
-        ? "Internal Server Error"
-        : (err.message || "Internal Server Error");
-
-    res.status(statusCode).json(
-        formatErrorResponse(clientMessage, errorCode, req?.id)
-    );
-});
+// 6. Centralized Global Error Handler Middleware
+app.use(errorHandler);
 
 // Database Connection
 const connectDB = async () => {
