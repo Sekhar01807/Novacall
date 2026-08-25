@@ -5,7 +5,6 @@
 **Enterprise-Grade Real-Time Multi-Party Video Conferencing & Signaling Platform**
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live_Deployment-007acc?style=flat&logo=vercel&logoColor=white)](https://novacall-two.vercel.app/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat)](LICENSE)
 [![React 19](https://img.shields.io/badge/React_19-20232A?style=flat&logo=react&logoColor=61DAFB)](https://react.dev/)
 [![Node.js 22](https://img.shields.io/badge/Node.js_22_LTS-339933?style=flat&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Express.js 5](https://img.shields.io/badge/Express.js_5-000000?style=flat&logo=express&logoColor=white)](https://expressjs.com/)
@@ -89,8 +88,6 @@ The platform includes a containerized Docker Compose environment, comprehensive 
 
 ## System Architecture
 
-![NovaCall System Architecture](screenshots/novacall_architecture.png)
-
 ```mermaid
 graph TD
     Client["React 19 Client (Vite + MUI v7)"]
@@ -164,6 +161,8 @@ Novacall/
 │   └── workflows/
 │       └── ci.yml                 # Node 22 CI pipeline (npm ci, tests, build)
 ├── backend/
+│   ├── docs/
+│   │   └── SOCKET_EVENTS.md      # Socket.IO protocol specification & sequence flows
 │   ├── src/
 │   │   ├── controllers/          # REST route controllers
 │   │   │   ├── user.controller.js          # Auth (login, register + welcome email dispatch)
@@ -172,7 +171,7 @@ Novacall/
 │   │   │   ├── meetingHistory.controller.js# Activity pagination, schedule CRUD & invite dispatches
 │   │   │   └── socketManager.js            # Socket initialization wrapper
 │   │   ├── docs/                 # OpenAPI 3.0 specification & Swagger UI
-│   │   ├── middleware/           # auth.middleware.js (Cookie + Bearer), requestId.middleware.js
+│   │   ├── middleware/           # auth.middleware.js, error.middleware.js, requestId.middleware.js
 │   │   ├── models/               # UserModel.js, meetingModel.js, scheduledMeetingModel.js
 │   │   ├── routes/               # UsersRoutes.js
 │   │   ├── services/             # email.service.js (Nodemailer SMTP & card templates)
@@ -181,14 +180,15 @@ Novacall/
 │   │   │   ├── middleware/       # Handshake JWT authentication & validator
 │   │   │   ├── roomState.js      # In-memory room and message store
 │   │   │   └── index.js          # Socket server initialization & routing
-│   │   ├── utils/                # errorCodes.js, jwt.js, logger.js, validators.js
+│   │   ├── utils/                # apiError.js, errorCodes.js, jwt.js, logger.js, roomCodeGenerator.js, validators.js
 │   │   └── app.js                # Express app, CSP, cookieParser, rate limiting & CORS
 │   ├── tests/
 │   │   ├── auth.test.js          # Auth, cookies, email service fallback & revocation tests
 │   │   ├── meetings.test.js      # Scheduled meetings & IDOR tests
 │   │   ├── socket.test.js        # Socket lifecycle, room capacity & moderation tests
 │   │   ├── chat.test.js          # Rate limiting, XSS sanitization & room isolation tests
-│   │   └── webrtc.test.js        # WebRTC signaling boundary isolation tests
+│   │   ├── webrtc.test.js        # WebRTC signaling boundary isolation tests
+│   │   └── errorMiddleware.test.js# Centralized error handler & API exception tests
 │   ├── Dockerfile                # Multi-stage Alpine container
 │   ├── package.json
 │   └── .env.example
@@ -203,7 +203,7 @@ Novacall/
 │   │   │       ├── services/     # socketService.js, meetingService.js
 │   │   │       └── VideoMeet.jsx # Meeting view orchestrator
 │   │   ├── styles/               # CSS modules & styling
-│   │   ├── utils/                # withAuth.jsx
+│   │   ├── utils/                # textUtils.js, withAuth.jsx
 │   │   ├── App.jsx               # Application routing & providers
 │   │   ├── index.css             # Design tokens & CSS variables
 │   │   └── index.jsx
@@ -313,6 +313,8 @@ npm run test:e2e:ui
 - **Socket.IO Lifecycle (`socket.test.js`)**: JWT handshake authentication, identity spoofing prevention, room join/leave lifecycle, host assignment, host succession upon disconnect, host mute/kick/end-meeting authorization, mesh capacity (6 users), and rate-limit map cleanup on disconnect.
 - **Chat Anti-Abuse (`chat.test.js`)**: Sliding-window rate limiting (5 msg / 3s), XSS sanitization, 1000-character payload limits, and cross-room isolation.
 - **WebRTC Signaling Boundary (`webrtc.test.js`)**: Intra-room SDP/ICE candidate relaying and cross-room signaling rejection.
+- **Centralized Error & Global Middleware (`errorMiddleware.test.js`)**: Custom ApiError handling, async exception bubbling, 404 route handling, and standard error code payload formatting.
+
 
 ### Playwright E2E Test Suite (`e2e/`)
 - **Flagship Flow (`flagship-flow.spec.js`)**: End-to-end user journey: Register → Login → Create Room → Join Stage → Moderate Participants → Toggle Controls → Send Chat → Leave Cleanly.
@@ -489,8 +491,3 @@ NovaCall includes interactive Swagger UI documentation and health monitoring:
 - GitHub: [@Sekhar01807](https://github.com/Sekhar01807)
 - LinkedIn: [Sekhar Reddy](https://www.linkedin.com/in/sekhar-reddy-408560281)
 
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
