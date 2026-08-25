@@ -217,4 +217,41 @@ describe("Chat", () => {
             client.disconnect();
         }
     });
+
+    test("ampersand and entity decoding prevents double encoding", async () => {
+        const { decodeHTMLEntities } = await import("../../frontend/src/utils/textUtils.js");
+        const client1 = await connectClient({ token: aliceToken });
+        const client2 = await connectClient({ token: bobToken });
+
+        try {
+            await new Promise((resolve) => {
+                client1.emit("join-call", "chat-amp-room");
+                client1.once("host-status", () => resolve());
+            });
+
+            await new Promise((resolve) => {
+                client2.emit("join-call", "chat-amp-room");
+                client2.once("host-status", () => resolve());
+            });
+
+            const chatPromise = new Promise((resolve) => {
+                client2.once("chat-message", (data, sender) => resolve({ data, sender }));
+            });
+
+            // Message with ampersand, quotes, and angles (e.g. AT&T & "quotes" <tag>)
+            const rawMessage = 'AT&T & "quotes" <tag> & It\'s great';
+            client1.emit("chat-message", rawMessage);
+            const { data, sender } = await chatPromise;
+
+            // 1. Server-side sanitization has escaped HTML characters
+            assert.strictEqual(data, 'AT&amp;T &amp; &quot;quotes&quot; &lt;tag&gt; &amp; It&#x27;s great');
+
+            // 2. Client-side decoding restores the exact original characters
+            const clientRendered = decodeHTMLEntities(data);
+            assert.strictEqual(clientRendered, rawMessage);
+        } finally {
+            client1.disconnect();
+            client2.disconnect();
+        }
+    });
 });
