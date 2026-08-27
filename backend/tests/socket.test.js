@@ -356,5 +356,88 @@ describe("Socket.IO", () => {
         assert.doesNotThrow(() => resetSocketRateLimits());
         assert.doesNotThrow(() => resetChatRateLimits());
     });
+
+    test("query-parameter token rejection (prevents token leakage in URLs)", async () => {
+        // Attempt to pass token purely via query string without auth/cookie
+        const client = await new Promise((resolve, reject) => {
+            const socket = Client(`http://localhost:${serverPort}`, {
+                query: { token: aliceToken },
+                transports: ["websocket"],
+                forceNew: true
+            });
+            socket.on("connect", () => resolve(socket));
+            socket.on("connect_error", (err) => reject(err));
+        });
+
+        await new Promise((resolve) => {
+            client.emit("join-call", "query-token-room");
+            client.once("host-status", () => {
+                const room = getRoom("query-token-room");
+                assert.ok(room);
+                const participant = room.participants.get(client.id);
+                // Token passed via query must be ignored; user must not be authenticated
+                assert.strictEqual(participant.isGuest, true, "Query-param token must not authenticate user");
+                assert.notStrictEqual(participant.displayName, "Alice Williams");
+                resolve();
+            });
+        });
+
+        client.disconnect();
+    });
+
+    test("socket tokenVersion session revocation parity", async () => {
+        const { setMockUserResolver } = await import("../src/sockets/middleware/socketAuth.middleware.js");
+
+        // Simulate DB state where Alice's tokenVersion was incremented to 2 (e.g. password change / signout all)
+        setMockUserResolver(async (idOrUsername) => {
+            return {
+                id: "60d0fe4f5311236168a109aa",
+                username: "alice_w",
+                tokenVersion: 2
+            };
+        });
+
+        try {
+            // 1. Old token signed with tokenVersion 1 (revoked)
+            const oldToken = signJWT({ ...userAlice, tokenVersion: 1 }, testSecret, "1h");
+            const connectOldPromise = new Promise((resolve) => {
+                const socket = Client(`http://localhost:${serverPort}`, {
+                    auth: { token: oldToken },
+                    transports: ["websocket"],
+                    forceNew: true
+                });
+                socket.on("connect_error", (err) => {
+                    socket.disconnect();
+                    resolve(err);
+                });
+                socket.on("connect", () => {
+                    socket.disconnect();
+                    resolve(null);
+                });
+            });
+
+            const error = await connectOldPromise;
+            assert.ok(error, "Revoked token must trigger connect_error");
+            assert.strictEqual(error.message, "AUTH_SESSION_REVOKED");
+
+            // 2. New token signed with current tokenVersion 2 (valid)
+            const newToken = signJWT({ ...userAlice, tokenVersion: 2 }, testSecret, "1h");
+            const connectNewPromise = new Promise((resolve, reject) => {
+                const socket = Client(`http://localhost:${serverPort}`, {
+                    auth: { token: newToken },
+                    transports: ["websocket"],
+                    forceNew: true
+                });
+                socket.on("connect", () => resolve(socket));
+                socket.on("connect_error", (err) => reject(err));
+            });
+
+            const validSocket = await connectNewPromise;
+            assert.ok(validSocket.id);
+            validSocket.disconnect();
+        } finally {
+            setMockUserResolver(null);
+        }
+    });
 });
 
