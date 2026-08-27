@@ -77,8 +77,12 @@ describe("Authentication", () => {
         }, "Logged in successfully", "req-1002");
 
         assert.strictEqual(successResponse.success, true);
-        assert.strictEqual(successResponse.username, "alice_w");
-        assert.strictEqual(successResponse.token, undefined, "JWT token must NOT be returned in JSON response body");
+        assert.strictEqual(successResponse.message, "Logged in successfully");
+        assert.strictEqual(successResponse.data.username, "alice_w");
+        assert.strictEqual(successResponse.data.email, "alice@novacall.io");
+        assert.strictEqual(successResponse.data.name, "Alice Williams");
+        assert.strictEqual(successResponse.data.token, undefined, "JWT token must NOT be returned in JSON response body");
+        assert.strictEqual(successResponse.token, undefined, "JWT token must NOT be returned in root response");
     });
 
     test("wrong password", async () => {
