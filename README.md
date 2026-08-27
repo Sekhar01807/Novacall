@@ -2,7 +2,7 @@
 
 # NovaCall
 
-**Enterprise-Grade Real-Time Multi-Party Video Conferencing & Signaling Platform**
+**Real-Time Multi-Party Video Conferencing & WebRTC Signaling Platform**
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live_Deployment-007acc?style=flat&logo=vercel&logoColor=white)](https://novacall-two.vercel.app/)
 [![React 19](https://img.shields.io/badge/React_19-20232A?style=flat&logo=react&logoColor=61DAFB)](https://react.dev/)
@@ -63,8 +63,9 @@ The platform includes a containerized Docker Compose environment, comprehensive 
 - **Modern Email Card System**: Built with cross-client bulletproof table markup, glowing header gradient accents (`#3B82F6` $\rightarrow$ `#EC4899`), midnight brand bar, monospace code pills, and responsive layout for Gmail, Apple Mail, Outlook, and mobile clients.
 
 ### Zero-Trust Authentication & IDOR Protection
-- **Dual-Layer Session Authentication**: Issues secure `HttpOnly`, `SameSite`, `Secure` session cookies to neutralize XSS token exfiltration while retaining Bearer header authorization support for decoupled cross-origin frontend deployments.
-- **Instant Session Revocation (`tokenVersion`)**: Atomic user `tokenVersion` increments immediately invalidate all active JWTs and cookies across devices upon password changes or global sign-out (`signOutAllDevices`).
+- **Pure HttpOnly Cookie Session Architecture**: Issues secure `HttpOnly`, `SameSite`, `Secure` session cookies with zero JWT leakage in JSON response payloads, completely preventing token exfiltration via client-side scripts.
+- **WebSocket Handshake Auth & URL Query Exclusion**: Socket.IO authenticates strictly via `HttpOnly` session cookies (`token`/`jwt`), `auth.token`, or `Authorization: Bearer` headers. URL query parameter tokens (`?token=...`) are explicitly disallowed to prevent credential exposure in access logs and proxies.
+- **Full-Stack Session Revocation (`tokenVersion`)**: Atomic user `tokenVersion` increments immediately invalidate all active JWTs across both HTTP endpoints and WebSocket signaling handshakes upon password changes or global sign-out (`signOutAllDevices`).
 - **Safe Profile DTO Protection**: Explicit public DTO whitelisting (`buildUserProfileDTO`), strictly preventing leakage of reset tokens, expiration timestamps, token versions, or credentials.
 - **Cryptographic Password Reset**: Secure 6-digit verification codes stored exclusively as SHA-256 hashes with 15-minute TTL, 5-attempt rate limits, and constant-time generic responses preventing account enumeration.
 - **Strict Multi-Tenant Resource Isolation**: Atomic queries prevent unauthorized access or deletion of third-party meetings, histories, or profile data.
@@ -251,7 +252,7 @@ Every real-time event passes through an authoritative 5-stage validation pipelin
 Handshake Authentication ──▶ Room Membership ──▶ Payload Validation ──▶ Authorization ──▶ State Transition
 ```
 
-1. **Authentication**: Handshake JWT verification via `HttpOnly` cookie or authorization claims attaches verified user identity (`socket.user`). Client-supplied display names cannot spoof authenticated accounts.
+1. **Authentication**: Handshake JWT verification via `HttpOnly` session cookie (`token`/`jwt`), `auth.token`, or `Authorization: Bearer` header attaches verified user identity (`socket.user`) and strictly enforces database `tokenVersion` validity (`AUTH_SESSION_REVOKED`). Handshake URL query parameter tokens are explicitly rejected to prevent credential leakage in proxy/access logs. Client-supplied display names cannot spoof authenticated accounts.
 2. **Room Membership**: Sockets must be active participants in the target room. Cross-room signaling and chat emissions are rejected.
 3. **Payload Validation**: Input sizes, strings, and types are validated; signaling messages are capped at 64KB; chat messages are capped at 1000 characters.
 4. **Authorization**: Host-exclusive actions (`host-mute-user`, `host-kick-user`, `end-meeting-all`) are verified server-side via `room.hostSocketId === socket.id`.

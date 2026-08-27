@@ -8,6 +8,15 @@ This document defines the real-time WebSocket protocol and event lifecycle imple
 
 Socket.IO connections are authenticated at the handshake level via `socketAuthMiddleware`.
 
+### Handshake Authentication Channels
+Tokens may be supplied via:
+1. **`auth` object**: `{ auth: { token: "<jwt>" } }`
+2. **`HttpOnly` session cookie**: Sent automatically during HTTP handshake (`token` or `jwt` cookie)
+3. **`Authorization` header**: `Authorization: Bearer <jwt>`
+
+> [!IMPORTANT]
+> **Query Parameter Rejection**: Passing tokens in handshake URL query parameters (`?token=<jwt>`) is **strictly disallowed** to prevent credential leakage in reverse proxy logs, browser histories, and server access logs.
+
 ### Handshake Authentication Payload
 ```json
 {
@@ -18,9 +27,10 @@ Socket.IO connections are authenticated at the handshake level via `socketAuthMi
 }
 ```
 
-* **Authenticated Users**: Providing a valid JWT token attaches the user's verified identity (`id`, `username`, `name`, `email`) to `socket.user`. The client *cannot* spoof their display name.
+* **Authenticated Users**: Providing a valid JWT token attaches the user's verified identity (`id`, `username`, `name`, `email`, `tokenVersion`) to `socket.user`. The client *cannot* spoof their display name.
+* **Instant Session Revocation (`tokenVersion`)**: The handshake middleware actively verifies `tokenVersion` against the persistent user record. Tokens with outdated versions (revoked via global sign-out or password change) are rejected with `AUTH_SESSION_REVOKED`.
 * **Guest Fallback**: If no token is provided, the user is assigned a guest session with a sanitized display name (`Guest Alex` or `guest_<socketId>`).
-* **Connection Rejection**: Tampered or expired JWT tokens immediately reject the connection with error code `AUTH_INVALID_TOKEN`.
+* **Connection Rejection**: Tampered or expired JWT tokens reject the connection with `AUTH_INVALID_TOKEN`. Revoked sessions reject with `AUTH_SESSION_REVOKED`. User accounts that no longer exist reject with `AUTH_USER_NOT_FOUND`.
 
 ---
 
@@ -64,7 +74,8 @@ Socket.IO connections are authenticated at the handshake level via `socketAuthMi
 | `INVALID_PAYLOAD` | Malformed socket event payload or invalid types | Socket event validator |
 | `AUTH_TOKEN_REQUIRED` | Missing Authorization Bearer token header | Protected REST endpoints |
 | `AUTH_TOKEN_INVALID` | Invalid, tampered, or expired JWT | Auth middleware / Socket handshake |
-| `AUTH_USER_NOT_FOUND` | User account does not exist | Login / User profile fetch |
+| `AUTH_SESSION_REVOKED` | Session revoked via `tokenVersion` increment | Auth middleware / Socket handshake |
+| `AUTH_USER_NOT_FOUND` | User account does not exist | Login / User profile fetch / Socket handshake |
 | `AUTH_INVALID_CREDENTIALS` | Incorrect username or password | Login / Change password |
 | `INVALID_ROOM_CODE` | Empty or malformed room code string | `join-call` |
 | `ROOM_CAPACITY_EXCEEDED` | Meeting room has reached maximum limit (6) | `join-call` |
