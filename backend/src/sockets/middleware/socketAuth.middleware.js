@@ -9,9 +9,19 @@ import { logger } from "../../utils/logger.js";
  */
 export const socketAuthMiddleware = (socket, next) => {
     try {
+        // 1. Check token in auth object
         let token = socket.handshake.auth?.token;
 
-        // Also check authorization header if not in auth object
+        // 2. Check token in session cookies (HttpOnly cookie sent during handshake)
+        if (!token && socket.handshake.headers?.cookie) {
+            const rawCookie = socket.handshake.headers.cookie;
+            const match = rawCookie.match(/(?:^|;\s*)(?:token|jwt)=([^;]+)/);
+            if (match) {
+                token = decodeURIComponent(match[1]);
+            }
+        }
+
+        // 3. Also check authorization header if not in auth or cookie
         if (!token && socket.handshake.headers?.authorization) {
             const authHeader = socket.handshake.headers.authorization;
             if (authHeader.startsWith("Bearer ")) {
@@ -21,7 +31,7 @@ export const socketAuthMiddleware = (socket, next) => {
             }
         }
 
-        // Check query param as last resort fallback
+        // 4. Check query param as last resort fallback
         if (!token && socket.handshake.query?.token) {
             token = socket.handshake.query.token;
         }

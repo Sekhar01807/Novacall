@@ -2,17 +2,9 @@ import axios from "axios";
 import server from "../../../environment";
 
 const client = axios.create({
-    baseURL: `${server}/api/v1/users`
+    baseURL: `${server}/api/v1/users`,
+    withCredentials: true
 });
-
-// Request interceptor to attach Bearer Token
-client.interceptors.request.use((config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-        config.headers["Authorization"] = `Bearer ${token}`;
-    }
-    return config;
-}, (error) => Promise.reject(error));
 
 export const meetingService = {
     async addHistory(meetingCode) {

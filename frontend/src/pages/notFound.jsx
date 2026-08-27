@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Box, Typography, Button, Container, Paper } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import HomeIcon from '@mui/icons-material/Home';
 import VideocamOffIcon from '@mui/icons-material/VideocamOff';
 import { logoImg } from '../assets/images';
+import { AuthContext } from '../contexts/AuthContext';
 
 export default function NotFound() {
     const navigate = useNavigate();
-    const token = localStorage.getItem("token");
+    const { userData, isAuthenticated } = useContext(AuthContext);
+    const isLoggedIn = isAuthenticated || Boolean(userData?.username);
 
     return (
         <Box sx={{
@@ -93,7 +95,7 @@ export default function NotFound() {
                         <Button
                             variant="contained"
                             startIcon={<HomeIcon />}
-                            onClick={() => navigate(token ? '/home' : '/')}
+                            onClick={() => navigate(isLoggedIn ? '/home' : '/')}
                             sx={{
                                 py: 1.4,
                                 px: 3,
@@ -104,7 +106,7 @@ export default function NotFound() {
                                 '&:hover': { bgcolor: '#2563EB' }
                             }}
                         >
-                            {token ? "Go to Dashboard" : "Go to Home"}
+                            {isLoggedIn ? "Go to Dashboard" : "Go to Home"}
                         </Button>
                     </Box>
                 </Paper>

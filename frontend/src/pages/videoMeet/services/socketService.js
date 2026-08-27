@@ -14,12 +14,12 @@ class SocketService {
      */
     connect(customToken, guestDisplayName) {
         if (!this.socket) {
-            const token = customToken || localStorage.getItem("token") || null;
             const guestName = guestDisplayName || localStorage.getItem("guestDisplayName") || "Guest";
 
             this.socket = io(server, {
+                withCredentials: true,
                 auth: {
-                    token: token,
+                    ...(customToken ? { token: customToken } : {}),
                     guestName: guestName
                 },
                 reconnection: true,

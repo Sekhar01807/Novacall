@@ -231,10 +231,11 @@ Novacall/
 
 NovaCall implements defense-in-depth security across HTTP REST and WebSocket signaling layers:
 
-### 1. Dual-Layer Session Authentication (HttpOnly Cookies + Bearer)
-- **HttpOnly Cookie Protection**: Login and registration issue secure `HttpOnly`, `SameSite=Lax/None`, `Secure` cookies with 7-day expiration. JavaScript executing in the browser cannot access this token, neutralizing token exfiltration risks from Cross-Site Scripting (XSS).
-- **Bearer Token Interoperability**: For decoupled cross-origin frontend hosting (e.g. Vercel SPA and Render API), the server supports simultaneous `Authorization: Bearer <token>` validation.
-- **Session Cleanup**: `signOutAllDevices`, `changePassword`, and `deleteAccount` explicitly clear session cookies (`res.clearCookie('token')`) and increment the user's `tokenVersion`.
+### 1. Pure HttpOnly Cookie Session Architecture & Strict CORS
+- **Pure HttpOnly Cookie Protection**: Login and registration issue secure `HttpOnly`, `SameSite=Lax/None`, `Secure` session cookies with 7-day expiration. The JWT access token is **never exposed in JSON response bodies** and **never stored in `localStorage`**, eliminating credential exfiltration risks from Cross-Site Scripting (XSS).
+- **Strict Origin Whitelisting**: CORS explicitly permits only configured and trusted origins (`https://novacall-two.vercel.app`, local dev servers). Wildcard `.vercel.app` allowances are strictly eliminated.
+- **Origin & CSRF Defense**: State-changing endpoints (`POST`, `PUT`, `PATCH`, `DELETE`) are protected by `csrfProtectionMiddleware`, enforcing strict `Origin` and `Referer` validation against the trusted origin whitelist.
+- **Session Cleanup**: `logout`, `signOutAllDevices`, `changePassword`, and `deleteAccount` explicitly clear session cookies (`res.clearCookie('token')`) and increment the user's `tokenVersion`.
 
 ### 2. Invariable IDOR (Insecure Direct Object Reference) Protection
 - **Scheduled Meetings**: Creation, retrieval, and deletion queries are strictly scoped to `req.user.username`. `DELETE /delete_scheduled_meeting/:id` executes an atomic `findOneAndDelete({ _id: id, user_id: req.user.username })` query. If the target resource belongs to another account, the server rejects the operation with `403 FORBIDDEN` (differentiated from `404 NOT_FOUND`).
@@ -250,16 +251,16 @@ Every real-time event passes through an authoritative 5-stage validation pipelin
 Handshake Authentication ──▶ Room Membership ──▶ Payload Validation ──▶ Authorization ──▶ State Transition
 ```
 
-1. **Authentication**: Handshake JWT verification attaches verified user claims (`socket.user`). Client-supplied display names cannot spoof authenticated accounts.
+1. **Authentication**: Handshake JWT verification via `HttpOnly` cookie or authorization claims attaches verified user identity (`socket.user`). Client-supplied display names cannot spoof authenticated accounts.
 2. **Room Membership**: Sockets must be active participants in the target room. Cross-room signaling and chat emissions are rejected.
 3. **Payload Validation**: Input sizes, strings, and types are validated; signaling messages are capped at 64KB; chat messages are capped at 1000 characters.
 4. **Authorization**: Host-exclusive actions (`host-mute-user`, `host-kick-user`, `end-meeting-all`) are verified server-side via `room.hostSocketId === socket.id`.
 5. **State Transition**: State updates (media muting, participant eviction, room destruction) update `roomState` and notify room peers. Rate-limit tracking maps are automatically purged upon socket disconnect.
 
-### 4. Password-Reset Production Boundary
+### 4. Password-Reset Production Boundary & Durable Rate Limiting
 - **Cryptographic Token Hashing**: Verification codes are generated via `crypto.randomInt(100000, 1000000)` and stored exclusively as a **SHA-256 hash** (`crypto.createHash("sha256")`).
-- **TTL & Rate Limiting**: Reset codes expire strictly after **15 minutes** and enforce a maximum limit of **5 verification attempts** before irreversible invalidation. An unreferenced timer automatically purges expired in-memory records every 10 minutes.
-- **Single-Use Invalidation**: The token is immediately destroyed upon successful password change and `tokenVersion` is incremented.
+- **Durable Attempt Persistence**: Invalid verification attempts are immediately persisted to MongoDB (`user.resetPasswordAttempts`), ensuring the strict **max 5 failed attempts** rate limit cannot be reset by server process restarts.
+- **TTL & Invalidation**: Reset codes expire strictly after **15 minutes**. When 5 attempts are exceeded or a password reset succeeds, tokens are permanently deleted from database and memory.
 - **Nodemailer Dispatch**: In production mode with configured SMTP credentials, reset codes are delivered out-of-band to the user's verified inbox; in local development without SMTP, the code is previewed in logs for automated test runners.
 
 ---
@@ -269,8 +270,9 @@ Handshake Authentication ──▶ Room Membership ──▶ Payload Validation 
 | Endpoint | Method | Auth Required | Description |
 | :--- | :---: | :---: | :--- |
 | **Authentication & Password Recovery** | | | |
-| `/api/v1/users/register` | `POST` | No | Register new user account; issues JWT & session cookie; sends Welcome Email |
-| `/api/v1/users/login` | `POST` | No | Authenticate credentials; returns JWT access token and sets HttpOnly cookie |
+| `/api/v1/users/register` | `POST` | No | Register new user account; sets HttpOnly cookie; sends Welcome Email |
+| `/api/v1/users/login` | `POST` | No | Authenticate credentials; sets secure HttpOnly session cookie |
+| `/api/v1/users/logout` | `POST` | No | Clear active HttpOnly session cookie |
 | `/api/v1/users/forgot_password` | `POST` | No | Request 6-digit SHA-256 reset verification code; dispatches email card |
 | `/api/v1/users/reset_password` | `POST` | No | Verify reset code and update user password |
 | **User Profile & Security** | | | |

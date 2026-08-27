@@ -132,9 +132,10 @@ export const resetPasswordWithCode = asyncHandler(async (req, res) => {
             expires: new Date(user.resetPasswordExpires).getTime(),
             attempts: user.resetPasswordAttempts || 0
         };
+        resetCodes.set(email, record);
     }
 
-    if (!record) {
+    if (!record || !user.resetPasswordToken) {
         return res.status(httpStatus.BAD_REQUEST).json(
             formatErrorResponse("No active password reset request found for this email", ERROR_CODES.INVALID_CODE, req.id)
         );
@@ -145,15 +146,16 @@ export const resetPasswordWithCode = asyncHandler(async (req, res) => {
         resetCodes.delete(email);
         user.resetPasswordToken = null;
         user.resetPasswordExpires = null;
+        user.resetPasswordAttempts = 0;
         await user.save();
         return res.status(httpStatus.BAD_REQUEST).json(
             formatErrorResponse("Verification code has expired. Please request a new code.", ERROR_CODES.INVALID_CODE, req.id)
         );
     }
 
-    // Rate limit attempts (Max 5 attempts)
-    record.attempts = (record.attempts || 0) + 1;
-    if (record.attempts > 5) {
+    // Check if code has already exceeded maximum attempts
+    const currentAttempts = Math.max(record.attempts || 0, user.resetPasswordAttempts || 0);
+    if (currentAttempts >= 5) {
         resetCodes.delete(email);
         user.resetPasswordToken = null;
         user.resetPasswordExpires = null;
@@ -169,8 +171,25 @@ export const resetPasswordWithCode = asyncHandler(async (req, res) => {
     const isMatch = record.hashedCode === inputHash;
 
     if (!isMatch) {
+        // Increment and immediately persist attempt count in DB and memory
+        const newAttempts = currentAttempts + 1;
+        record.attempts = newAttempts;
+        user.resetPasswordAttempts = newAttempts;
+
+        if (newAttempts >= 5) {
+            resetCodes.delete(email);
+            user.resetPasswordToken = null;
+            user.resetPasswordExpires = null;
+            user.resetPasswordAttempts = 0;
+            await user.save();
+            return res.status(httpStatus.TOO_MANY_REQUESTS).json(
+                formatErrorResponse("Too many invalid attempts. This reset code is now invalidated.", ERROR_CODES.TOO_MANY_ATTEMPTS, req.id)
+            );
+        }
+
+        await user.save();
         return res.status(httpStatus.BAD_REQUEST).json(
-            formatErrorResponse(`Invalid verification code. (${5 - record.attempts} attempts remaining)`, ERROR_CODES.INVALID_CODE, req.id)
+            formatErrorResponse(`Invalid verification code. (${5 - newAttempts} attempts remaining)`, ERROR_CODES.INVALID_CODE, req.id)
         );
     }
 

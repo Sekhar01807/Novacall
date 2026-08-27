@@ -13,6 +13,8 @@ import { requestIdMiddleware } from "./middleware/requestId.middleware.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware.js";
 import { ERROR_CODES, formatErrorResponse } from "./utils/errorCodes.js";
 import { validateJwtSecretAtStartup } from "./utils/jwt.js";
+import { isOriginAllowed, getAllowedOrigins } from "./utils/allowedOrigins.js";
+import { csrfProtectionMiddleware } from "./middleware/csrf.middleware.js";
 
 dotenv.config();
 
@@ -59,33 +61,17 @@ app.use((req, res, next) => {
     next();
 });
 
-// 4. Configurable CORS for Production & Local Development
-const DEFAULT_ALLOWED_ORIGINS = [
-    "https://novacall-two.vercel.app",
-    "https://novacall-backend.onrender.com",
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://localhost:8000"
-];
-
-const configuredOrigins = process.env.FRONTEND_URL
-    ? (process.env.FRONTEND_URL.includes(",")
-        ? process.env.FRONTEND_URL.split(",").map(o => o.trim()).filter(Boolean)
-        : [process.env.FRONTEND_URL.trim()])
-    : DEFAULT_ALLOWED_ORIGINS;
-
+// 4. Strict Configurable CORS for Production & Local Development
 app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (mobile apps, curl, server-to-server, health checks)
         if (!origin) return callback(null, true);
-        // Allow in dev or if wildcard is explicitly configured
-        if (configuredOrigins.includes("*") || process.env.NODE_ENV !== "production") {
+        
+        // Strict origin validation (Wildcard .vercel.app allowance strictly removed)
+        if (isOriginAllowed(origin)) {
             return callback(null, true);
         }
-        // Allow configured origins or Vercel preview deployments
-        if (configuredOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
-            return callback(null, true);
-        }
+
         logger.warn(`CORS rejected request from origin: ${origin}`);
         return callback(null, false);
     },
@@ -174,8 +160,8 @@ app.get("/api/openapi.json", (req, res) => {
     res.json(openapiSpecification);
 });
 
-// Versioned API Routes (v1)
-app.use("/api/v1/users", UsersRoutes);
+// Versioned API Routes (v1) with CSRF & Origin defense
+app.use("/api/v1/users", csrfProtectionMiddleware, UsersRoutes);
 
 app.get("/", (req, res) => {
     res.json({

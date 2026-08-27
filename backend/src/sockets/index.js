@@ -7,6 +7,8 @@ import { handleToggleMediaState } from "./handlers/media.handler.js";
 import { handleHostMute, handleHostKick, handleEndMeeting } from "./handlers/moderation.handler.js";
 import { logger } from "../utils/logger.js";
 
+import { isOriginAllowed } from "../utils/allowedOrigins.js";
+
 /**
  * Initialize Socket.IO Server with JWT authentication & modular event routing
  * @param {import('node:http').Server} server
@@ -14,22 +16,13 @@ import { logger } from "../utils/logger.js";
  * @returns {import('socket.io').Server}
  */
 export const initializeSocketIO = (server, options = {}) => {
-    const DEFAULT_ALLOWED_ORIGINS = [
-        "https://novacall-two.vercel.app",
-        "https://novacall-backend.onrender.com",
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://localhost:8000"
-    ];
-
-    const rawOrigins = process.env.FRONTEND_URL;
-    const allowedOrigins = rawOrigins
-        ? (rawOrigins.includes(",") ? rawOrigins.split(",").map(o => o.trim()) : rawOrigins)
-        : (process.env.NODE_ENV === "production" ? DEFAULT_ALLOWED_ORIGINS : "*");
-
     const io = new Server(server, {
         cors: {
-            origin: allowedOrigins,
+            origin: (origin, callback) => {
+                if (!origin) return callback(null, true);
+                if (isOriginAllowed(origin)) return callback(null, true);
+                return callback(new Error("CORS_NOT_ALLOWED"), false);
+            },
             methods: ["GET", "POST"],
             allowedHeaders: ["*"],
             credentials: true

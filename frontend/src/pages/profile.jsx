@@ -26,6 +26,7 @@ import CircleIcon from '@mui/icons-material/Circle';
 import "../App.css";
 import { logoImg } from '../assets/images';
 import { AuthContext } from '../contexts/AuthContext';
+import withAuth from '../utils/withAuth';
 
 function ProfileComponent() {
     const navigate = useNavigate();
@@ -632,4 +633,4 @@ function ProfileComponent() {
     );
 }
 
-export default ProfileComponent;
+export default withAuth(ProfileComponent);

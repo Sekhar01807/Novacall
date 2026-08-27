@@ -42,9 +42,9 @@ function HomeComponent() {
     
     // Profile State
     const [profileOpen, setProfileOpen] = useState(false);
-    const { userData, addToUserHistory, createScheduledMeeting, getUpcomingMeetings, getHistoryOfUser, deleteScheduledMeeting } = useContext(AuthContext);
+    const { userData, addToUserHistory, createScheduledMeeting, getUpcomingMeetings, getHistoryOfUser, deleteScheduledMeeting, handleLogout } = useContext(AuthContext);
     const savedProfile = JSON.parse(localStorage.getItem("userProfile")) || {};
-    const displayName = userData?.name || userData?.username || savedProfile.displayName || (localStorage.getItem("token") ? "User" : "Guest");
+    const displayName = userData?.name || userData?.username || savedProfile.displayName || "User";
     const profilePic = userData?.profilePic || savedProfile.profilePic || "";
 
     const loadDashboardData = useCallback(async () => {
@@ -202,10 +202,7 @@ function HomeComponent() {
                                 <ListItemText primary="Settings" primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 600, color: '#F1F5F9' }} />
                             </ListItem>
                             <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
-                            <ListItem button onClick={() => {
-                                localStorage.removeItem("token");
-                                navigate("/");
-                            }} sx={{ py: 1.5, cursor: 'pointer', transition: 'all 0.2s', '&:hover': { bgcolor: 'rgba(244, 63, 94, 0.2)' } }}>
+                            <ListItem button onClick={handleLogout} sx={{ py: 1.5, cursor: 'pointer', transition: 'all 0.2s', '&:hover': { bgcolor: 'rgba(244, 63, 94, 0.2)' } }}>
                                 <ListItemIcon sx={{ minWidth: 36 }}><LogoutIcon fontSize="small" sx={{ color: '#F43F5E' }} /></ListItemIcon>
                                 <ListItemText primary="Logout" primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 700, color: '#F43F5E' }} />
                             </ListItem>

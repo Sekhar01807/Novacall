@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { 
-    loginUser, registerUser, addToHistory, getUserHistory, getUserProfile, 
+    loginUser, registerUser, logoutUser, addToHistory, getUserHistory, getUserProfile, 
     updateUserProfile, changePassword, signOutAllDevices, deleteAccount,
     forgotPassword, resetPasswordWithCode, createScheduledMeeting,
     getUpcomingMeetings, deleteScheduledMeeting 
@@ -12,6 +12,7 @@ const router = Router();
 // Public Auth Routes
 router.route("/login").post(loginUser);
 router.route("/register").post(registerUser);
+router.route("/logout").post(logoutUser);
 router.route("/forgot_password").post(forgotPassword);
 router.route("/reset_password").post(resetPasswordWithCode);
 

@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState, useCallback } from 'react'
 import { AuthContext } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom';
+import withAuth from '../utils/withAuth';
 import { 
     Card, CardContent, Button, Typography, IconButton, Box, Chip, Tabs, Tab, 
     TextField, InputAdornment, Skeleton, Pagination, MenuItem, Select, FormControl, InputLabel 
@@ -16,7 +17,7 @@ import ChatIcon from '@mui/icons-material/Chat';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { logoImg } from '../assets/images';
 
-export default function History() {
+function History() {
     const { getHistoryOfUser, userData } = useContext(AuthContext);
     const [meetings, setMeetings] = useState([]);
     const [selectedMeeting, setSelectedMeeting] = useState(null);
@@ -353,3 +354,5 @@ export default function History() {
         </div>
     );
 }
+
+export default withAuth(History);

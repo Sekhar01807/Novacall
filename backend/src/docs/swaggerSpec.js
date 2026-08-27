@@ -74,8 +74,17 @@ export const openapiSpecification = {
                     }
                 },
                 responses: {
-                    200: { description: "Login successful with JWT access token" },
+                    200: { description: "Login successful; HttpOnly session cookie issued" },
                     401: { description: "Invalid credentials" }
+                }
+            }
+        },
+        "/logout": {
+            post: {
+                summary: "Sign out user and clear session cookie",
+                tags: ["Authentication"],
+                responses: {
+                    200: { description: "Logged out successfully; session cookie cleared" }
                 }
             }
         },

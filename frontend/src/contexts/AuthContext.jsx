@@ -7,39 +7,14 @@ import server from "../environment";
 /* eslint-disable react-refresh/only-export-components */
 export const AuthContext = createContext({});
 
-const client = axios.create({
+export const client = axios.create({
     baseURL: `${server}/api/v1/users`,
     withCredentials: true
 });
 
-// Automatically attach Authorization Bearer token header to all requests
-client.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem("token");
-        if (token) {
-            config.headers["Authorization"] = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => Promise.reject(error)
-);
-
-// Session Expiration Interceptor
-client.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-            localStorage.removeItem("token");
-            localStorage.removeItem("userProfile");
-            window.location.href = "/auth?mode=signin&reason=expired";
-        }
-        return Promise.reject(error);
-    }
-);
-
 export const AuthProvider = ({ children }) => {
-    const authContext = useContext(AuthContext);
-    const [userData, setUserData] = useState(authContext);
+    const [userData, setUserData] = useState(null);
+    const [authLoading, setAuthLoading] = useState(true);
     const [themeMode, setThemeModeState] = useState(localStorage.getItem("themeMode") || "light");
     const router = useNavigate();
 
@@ -67,8 +42,6 @@ export const AuthProvider = ({ children }) => {
     };
 
     const fetchUserProfile = async () => {
-        const token = localStorage.getItem("token");
-        if (!token) return null;
         try {
             const res = await client.get("/get_profile");
             if (res.status === httpStatus.OK && res.data) {
@@ -96,7 +69,10 @@ export const AuthProvider = ({ children }) => {
                 return res.data;
             }
         } catch (e) {
-            console.error("Error fetching user profile:", e);
+            setUserData(null);
+            localStorage.removeItem("userProfile");
+        } finally {
+            setAuthLoading(false);
         }
         return null;
     };
@@ -125,9 +101,21 @@ export const AuthProvider = ({ children }) => {
         });
 
         if (request.status === httpStatus.OK) {
-            localStorage.setItem("token", request.data.token);
             await fetchUserProfile();
             router("/home");
+        }
+    };
+
+    const handleLogout = async () => {
+        try {
+            await client.post("/logout");
+        } catch (e) {
+            console.error("Logout error", e);
+        } finally {
+            localStorage.removeItem("userProfile");
+            localStorage.removeItem("meetingSettings");
+            setUserData(null);
+            router("/");
         }
     };
 
@@ -170,9 +158,9 @@ export const AuthProvider = ({ children }) => {
         } catch (e) {
             console.error("Sign out all error", e);
         } finally {
-            localStorage.removeItem("token");
             localStorage.removeItem("userProfile");
-            setUserData({});
+            localStorage.removeItem("meetingSettings");
+            setUserData(null);
             router("/");
         }
     };
@@ -183,9 +171,9 @@ export const AuthProvider = ({ children }) => {
         } catch (e) {
             console.error("Delete account error", e);
         } finally {
-            localStorage.removeItem("token");
             localStorage.removeItem("userProfile");
-            setUserData({});
+            localStorage.removeItem("meetingSettings");
+            setUserData(null);
             router("/");
         }
     };
@@ -231,11 +219,14 @@ export const AuthProvider = ({ children }) => {
     const data = {
         userData,
         setUserData,
+        authLoading,
+        isAuthenticated: Boolean(userData?.username),
         themeMode,
         setThemeMode,
         fetchUserProfile,
         updateUserProfile,
         changePassword,
+        handleLogout,
         signOutAllDevices,
         deleteAccount,
         addToUserHistory,

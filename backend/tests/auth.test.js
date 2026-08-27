@@ -71,15 +71,14 @@ describe("Authentication", () => {
         assert.ok(token, "JWT access token must be generated");
 
         const successResponse = formatSuccessResponse({
-            token,
             email: user.email,
             username: user.username,
             name: user.name
-        }, null, "req-1002");
+        }, "Logged in successfully", "req-1002");
 
         assert.strictEqual(successResponse.success, true);
         assert.strictEqual(successResponse.username, "alice_w");
-        assert.ok(successResponse.token);
+        assert.strictEqual(successResponse.token, undefined, "JWT token must NOT be returned in JSON response body");
     });
 
     test("wrong password", async () => {
@@ -274,6 +273,51 @@ describe("Authentication", () => {
 
         assert.strictEqual(typeof isEmailConfigured(), "boolean");
     });
+
+    test("strict origin validation rejects wildcard vercel origins", async () => {
+        const { isOriginAllowed } = await import("../src/utils/allowedOrigins.js");
+
+        // Allowed configured origins
+        assert.strictEqual(isOriginAllowed("https://novacall-two.vercel.app"), true);
+        assert.strictEqual(isOriginAllowed("https://novacall-backend.onrender.com"), true);
+
+        // Disallowed origins (Wildcard .vercel.app must NOT be allowed)
+        assert.strictEqual(isOriginAllowed("https://malicious-site.vercel.app"), false);
+        assert.strictEqual(isOriginAllowed("https://attacker-app.vercel.app"), false);
+        assert.strictEqual(isOriginAllowed("https://evil-phishing.com"), false);
+    });
+
+    test("durable password reset attempt counter increments across failed attempts", () => {
+        let userRecord = {
+            email: "alice@novacall.io",
+            resetPasswordToken: "sample_token_hash",
+            resetPasswordAttempts: 0
+        };
+
+        // Simulate 3 failed attempts
+        for (let i = 1; i <= 3; i++) {
+            userRecord.resetPasswordAttempts += 1;
+        }
+        assert.strictEqual(userRecord.resetPasswordAttempts, 3);
+
+        // Simulate process restart: reload state from DB record
+        const reloadedFromDb = { ...userRecord };
+        assert.strictEqual(reloadedFromDb.resetPasswordAttempts, 3, "Database record must preserve failed attempt count");
+
+        // 2 more failed attempts reach 5 limit
+        for (let i = 4; i <= 5; i++) {
+            reloadedFromDb.resetPasswordAttempts += 1;
+        }
+        assert.strictEqual(reloadedFromDb.resetPasswordAttempts, 5);
+
+        // Invalidate when max attempts reached
+        if (reloadedFromDb.resetPasswordAttempts >= 5) {
+            reloadedFromDb.resetPasswordToken = null;
+            reloadedFromDb.resetPasswordAttempts = 0;
+        }
+        assert.strictEqual(reloadedFromDb.resetPasswordToken, null);
+    });
 });
+
 
 

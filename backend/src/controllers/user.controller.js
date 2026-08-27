@@ -85,11 +85,10 @@ const login = asyncHandler(async (req, res) => {
 
     return res.status(httpStatus.OK).json(
         formatSuccessResponse({
-            token: token,
             email: user.email,
             username: user.username,
             name: user.name
-        }, null, req.id)
+        }, "Logged in successfully", req.id)
     );
 });
 
@@ -156,7 +155,6 @@ const register = asyncHandler(async (req, res) => {
 
     res.status(httpStatus.CREATED).json(
         formatSuccessResponse({
-            token: token,
             name: newUser.name,
             username: newUser.username,
             email: newUser.email
@@ -164,9 +162,26 @@ const register = asyncHandler(async (req, res) => {
     );
 });
 
+/**
+ * User Logout Controller
+ * Clears the session HttpOnly cookie.
+ */
+const logout = asyncHandler(async (req, res) => {
+    res.clearCookie("token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+    });
+
+    return res.status(httpStatus.OK).json(
+        formatSuccessResponse(null, "Logged out successfully", req.id)
+    );
+});
+
 export { 
     login as loginUser, 
     register as registerUser, 
+    logout as logoutUser,
     getUserHistory, 
     addToHistory, 
     getUserProfile, 
