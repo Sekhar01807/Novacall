@@ -1,13 +1,24 @@
+import mongoose from "mongoose";
+import { User } from "../../models/UserModel.js";
 import { verifyJWT } from "../../utils/jwt.js";
 import { sanitizeHTML } from "../roomState.js";
 import { logger } from "../../utils/logger.js";
 
 /**
- * Socket.IO Authentication Middleware
- * Validates JWT access token on handshake.
- * Authoritative user identity is attached to socket.user and CANNOT be spoofed by client-emitted payloads.
+ * Optional in-memory mock resolver for testing environments
  */
-export const socketAuthMiddleware = (socket, next) => {
+let mockUserResolver = null;
+export const setMockUserResolver = (resolver) => {
+    mockUserResolver = resolver;
+};
+
+/**
+ * Socket.IO Authentication Middleware
+ * Validates JWT access token on handshake via session cookies, auth payload, or authorization header.
+ * Query parameter tokens are strictly disallowed to prevent credential leakage in URLs/logs.
+ * Enforces database-backed tokenVersion checking for instant session revocation parity with HTTP auth.
+ */
+export const socketAuthMiddleware = async (socket, next) => {
     try {
         // 1. Check token in auth object
         let token = socket.handshake.auth?.token;
@@ -21,7 +32,7 @@ export const socketAuthMiddleware = (socket, next) => {
             }
         }
 
-        // 3. Also check authorization header if not in auth or cookie
+        // 3. Check authorization header if not in auth or cookie
         if (!token && socket.handshake.headers?.authorization) {
             const authHeader = socket.handshake.headers.authorization;
             if (authHeader.startsWith("Bearer ")) {
@@ -31,10 +42,9 @@ export const socketAuthMiddleware = (socket, next) => {
             }
         }
 
-        // 4. Check query param as last resort fallback
-        if (!token && socket.handshake.query?.token) {
-            token = socket.handshake.query.token;
-        }
+        // NOTE: Handshake query parameter tokens (socket.handshake.query?.token) are explicitly
+        // DISALLOWED and ignored to prevent sensitive credentials from leaking through URLs,
+        // browser histories, reverse proxy logs, or debugging traces.
 
         const guestName = socket.handshake.auth?.guestName || socket.handshake.query?.guestName;
 
@@ -45,12 +55,40 @@ export const socketAuthMiddleware = (socket, next) => {
                 return next(new Error("AUTH_INVALID_TOKEN"));
             }
 
+            // Enforce tokenVersion revocation check against database (or test resolver)
+            if (typeof mockUserResolver === "function") {
+                const mockUser = await mockUserResolver(decoded.id || decoded._id || decoded.username);
+                if (!mockUser) {
+                    logger.warn(`Socket authentication failed for client ${socket.id}: User account not found`);
+                    return next(new Error("AUTH_USER_NOT_FOUND"));
+                }
+                const expectedVersion = mockUser.tokenVersion || 0;
+                const tokenVersion = decoded.tokenVersion ?? 0;
+                if (tokenVersion < expectedVersion) {
+                    logger.warn(`Socket authentication rejected for client ${socket.id}: Session revoked (tokenVersion ${tokenVersion} < expected ${expectedVersion})`);
+                    return next(new Error("AUTH_SESSION_REVOKED"));
+                }
+            } else if (mongoose.connection.readyState === 1) {
+                const user = await User.findById(decoded.id || decoded._id).select("tokenVersion");
+                if (!user) {
+                    logger.warn(`Socket authentication failed for client ${socket.id}: User account not found`);
+                    return next(new Error("AUTH_USER_NOT_FOUND"));
+                }
+                const expectedVersion = user.tokenVersion || 0;
+                const tokenVersion = decoded.tokenVersion ?? 0;
+                if (tokenVersion < expectedVersion) {
+                    logger.warn(`Socket authentication rejected for client ${socket.id}: Session revoked (tokenVersion ${tokenVersion} < expected ${expectedVersion})`);
+                    return next(new Error("AUTH_SESSION_REVOKED"));
+                }
+            }
+
             // Authenticated user with server-verified credentials
             socket.user = {
                 id: decoded.id || decoded._id,
                 username: sanitizeHTML(decoded.username || "User"),
                 name: sanitizeHTML(decoded.name || decoded.username || "User"),
                 email: decoded.email || "",
+                tokenVersion: decoded.tokenVersion ?? 0,
                 isGuest: false
             };
             logger.info(`Socket authenticated: ${socket.user.username} (${socket.id})`);

@@ -55,7 +55,7 @@ export const authMiddleware = async (req, res, next) => {
             return res.status(httpStatus.UNAUTHORIZED).json(
                 formatErrorResponse(
                     "Session has expired or been revoked. Please log in again.",
-                    ERROR_CODES.AUTH_TOKEN_INVALID,
+                    ERROR_CODES.AUTH_SESSION_REVOKED,
                     req.id
                 )
             );

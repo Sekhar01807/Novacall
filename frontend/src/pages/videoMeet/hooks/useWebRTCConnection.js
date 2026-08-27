@@ -214,8 +214,8 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
         socketRef.current = socket;
 
         socket.on("connect_error", (err) => {
-            if (err.message === "AUTH_INVALID_TOKEN") {
-                setErrorMessage("Your login session has expired. Joining as guest participant.");
+            if (err.message === "AUTH_INVALID_TOKEN" || err.message === "AUTH_SESSION_REVOKED" || err.message === "AUTH_USER_NOT_FOUND") {
+                setErrorMessage("Your login session has expired or been revoked. Joining as guest participant.");
                 socketService.disconnect();
                 setTimeout(() => {
                     if (connectToSocketRef.current) connectToSocketRef.current();
