@@ -186,6 +186,20 @@ const connectDB = async () => {
         logger.warn("ATLASDB_URL environment variable is not defined.");
         return;
     }
+
+    mongoose.connection.on("connected", () => {
+        logger.info(`MongoDB connection established (Database: "${mongoose.connection.name}")`);
+    });
+    mongoose.connection.on("error", (err) => {
+        logger.error("MongoDB connection error:", err);
+    });
+    mongoose.connection.on("disconnected", () => {
+        logger.warn("MongoDB connection disconnected.");
+    });
+    mongoose.connection.on("reconnected", () => {
+        logger.info("MongoDB connection re-established.");
+    });
+
     try {
         await mongoose.connect(dbUrl, {
             dbName: process.env.DB_NAME || "novacall"
