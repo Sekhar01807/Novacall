@@ -55,6 +55,9 @@ export const socketAuthMiddleware = async (socket, next) => {
                 return next(new Error("AUTH_INVALID_TOKEN"));
             }
 
+            let resolvedUsername = decoded.username || "User";
+            let resolvedName = decoded.name || decoded.username || "User";
+
             // Enforce tokenVersion revocation check against database (or test resolver)
             if (typeof mockUserResolver === "function") {
                 const mockUser = await mockUserResolver(decoded.id || decoded._id || decoded.username);
@@ -68,8 +71,10 @@ export const socketAuthMiddleware = async (socket, next) => {
                     logger.warn(`Socket authentication rejected for client ${socket.id}: Session revoked (tokenVersion ${tokenVersion} < expected ${expectedVersion})`);
                     return next(new Error("AUTH_SESSION_REVOKED"));
                 }
+                if (mockUser.username) resolvedUsername = mockUser.username;
+                if (mockUser.name) resolvedName = mockUser.name;
             } else if (mongoose.connection.readyState === 1) {
-                const user = await User.findById(decoded.id || decoded._id).select("tokenVersion");
+                const user = await User.findById(decoded.id || decoded._id).select("tokenVersion username name email");
                 if (!user) {
                     logger.warn(`Socket authentication failed for client ${socket.id}: User account not found`);
                     return next(new Error("AUTH_USER_NOT_FOUND"));
@@ -80,13 +85,15 @@ export const socketAuthMiddleware = async (socket, next) => {
                     logger.warn(`Socket authentication rejected for client ${socket.id}: Session revoked (tokenVersion ${tokenVersion} < expected ${expectedVersion})`);
                     return next(new Error("AUTH_SESSION_REVOKED"));
                 }
+                if (user.username) resolvedUsername = user.username;
+                if (user.name) resolvedName = user.name;
             }
 
             // Authenticated user with server-verified credentials
             socket.user = {
                 id: decoded.id || decoded._id,
-                username: sanitizeHTML(decoded.username || "User"),
-                name: sanitizeHTML(decoded.name || decoded.username || "User"),
+                username: sanitizeHTML(resolvedUsername || "User"),
+                name: sanitizeHTML(resolvedName || resolvedUsername || "User"),
                 email: decoded.email || "",
                 tokenVersion: decoded.tokenVersion ?? 0,
                 isGuest: false

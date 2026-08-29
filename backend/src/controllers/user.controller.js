@@ -70,6 +70,7 @@ const login = asyncHandler(async (req, res) => {
 
     const token = signJWT({
         id: user._id,
+        name: user.name,
         username: user.username,
         email: user.email,
         tokenVersion: user.tokenVersion || 0
@@ -130,6 +131,7 @@ const register = asyncHandler(async (req, res) => {
 
     const token = signJWT({
         id: newUser._id,
+        name: newUser.name,
         username: newUser.username,
         email: newUser.email,
         tokenVersion: 0

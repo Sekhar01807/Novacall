@@ -18,7 +18,9 @@ export function ParticipantList({
         ...remoteVideos.map(v => v.socketId)
     ])).filter(Boolean);
 
-    const cleanLocalUsername = decodeHTMLEntities(localUsername) || "User";
+    const cleanLocalUsername = (localUsername && localUsername.includes('@'))
+        ? localUsername.split('@')[0]
+        : (decodeHTMLEntities(localUsername) || "User");
 
     return (
         <Box sx={{ p: 2 }}>
@@ -44,7 +46,10 @@ export function ParticipantList({
             {/* Remote Participants */}
             {remotePeerIds.map((sId, idx) => {
                 const rawName = peerNames[sId] || `Participant ${idx + 1}`;
-                const name = decodeHTMLEntities(rawName);
+                let name = decodeHTMLEntities(rawName);
+                if (name && name.includes('@')) {
+                    name = name.split('@')[0];
+                }
                 return (
                     <Box
                         key={sId}

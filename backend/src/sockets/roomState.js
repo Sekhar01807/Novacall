@@ -131,8 +131,18 @@ export const addParticipant = (roomCode, socketId, user = {}, maxCapacity = DEFA
         room.hostSocketId = socketId;
     }
 
-    const displayName = sanitizeHTML(user.name || user.username || (user.isGuest ? 'Guest' : 'Participant'));
-    const username = sanitizeHTML(user.username || displayName);
+    // Determine clean username and display name (never expose email domain in chat/participants)
+    let rawDisplayName = user.username || user.name || (user.isGuest ? 'Guest' : 'Participant');
+    if (typeof rawDisplayName === 'string' && rawDisplayName.includes('@')) {
+        rawDisplayName = (user.username && !user.username.includes('@')) ? user.username : rawDisplayName.split('@')[0];
+    }
+    const displayName = sanitizeHTML(rawDisplayName);
+
+    let rawUsername = user.username || displayName;
+    if (typeof rawUsername === 'string' && rawUsername.includes('@')) {
+        rawUsername = rawUsername.split('@')[0];
+    }
+    const username = sanitizeHTML(rawUsername || displayName);
 
     const participant = {
         socketId,

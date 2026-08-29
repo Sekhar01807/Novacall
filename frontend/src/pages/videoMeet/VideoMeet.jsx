@@ -30,13 +30,30 @@ export default function VideoMeet() {
     const savedProfile = JSON.parse(localStorage.getItem("userProfile")) || {};
     const guestName = localStorage.getItem("guestDisplayName") || "";
 
-    const [username, setUsername] = useState(
-        userData?.name || userData?.username || guestName || savedProfile.displayName || "Participant"
-    );
+    const getCleanUsername = () => {
+        if (userData?.username) return userData.username;
+        if (savedProfile.username) return savedProfile.username;
+        if (userData?.name && !userData.name.includes('@')) return userData.name;
+        if (savedProfile.displayName && !savedProfile.displayName.includes('@')) return savedProfile.displayName;
+        if (guestName) return guestName.includes('@') ? guestName.split('@')[0] : guestName;
+        if (userData?.email) return userData.email.split('@')[0];
+        return "Participant";
+    };
+
+    const [username, setUsername] = useState(getCleanUsername);
     const [showDrawer, setShowDrawer] = useState(false);
     const [drawerTab, setDrawerTab] = useState(0); // 0: Chat, 1: People
     const [copiedCode, setCopiedCode] = useState(false);
     const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
+    // Synchronize username whenever user authentication profile arrives
+    useEffect(() => {
+        if (userData?.username) {
+            setUsername(userData.username);
+        } else if (userData?.name && !userData.name.includes('@')) {
+            setUsername(userData.name);
+        }
+    }, [userData]);
 
     const roomCode = window.location.pathname.replace(/^\/+/, '') || 'demo';
 

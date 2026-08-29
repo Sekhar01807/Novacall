@@ -39,6 +39,15 @@ export function ChatPanel({ messages, onSendMessage }) {
         });
     };
 
+    const getCleanSenderName = (rawSender) => {
+        const decoded = decodeHTMLEntities(rawSender);
+        if (!decoded) return 'Participant';
+        if (decoded.includes('@')) {
+            return decoded.split('@')[0];
+        }
+        return decoded;
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Messages Scroll Area */}
@@ -47,7 +56,7 @@ export function ChatPanel({ messages, onSendMessage }) {
                     messages.map((item, index) => (
                         <div className={styles.chatBubble} key={index}>
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.3 }}>
-                                <p className={styles.chatSender}>{decodeHTMLEntities(item.sender) || 'Participant'}</p>
+                                <p className={styles.chatSender}>{getCleanSenderName(item.sender)}</p>
                                 <Typography variant="caption" sx={{ color: '#94A3B8', fontSize: '0.65rem' }}>
                                     {item.timestamp}
                                 </Typography>

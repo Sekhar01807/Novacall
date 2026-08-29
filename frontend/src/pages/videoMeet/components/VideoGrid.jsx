@@ -24,15 +24,21 @@ export function VideoGrid({
         ...remoteVideos.map(v => v.socketId)
     ])).filter(Boolean);
 
-    const cleanLocalUsername = decodeHTMLEntities(localUsername) || "User";
+    const cleanLocalUsername = (localUsername && localUsername.includes('@'))
+        ? localUsername.split('@')[0]
+        : (decodeHTMLEntities(localUsername) || "User");
 
     const remotePeers = remotePeerIds.map((peerId, idx) => {
         const vid = remoteVideos.find(v => v.socketId === peerId);
         const rawName = peerNames[peerId] || `Participant ${idx + 1}`;
+        let cleanName = decodeHTMLEntities(rawName);
+        if (cleanName && cleanName.includes('@')) {
+            cleanName = cleanName.split('@')[0];
+        }
         return {
             socketId: peerId,
             stream: vid ? vid.stream : null,
-            name: decodeHTMLEntities(rawName),
+            name: cleanName,
             isVideoMuted: vid ? (peerMediaStates[peerId]?.videoMuted ?? false) : true,
             isAudioMuted: peerMediaStates[peerId]?.audioMuted ?? false,
             quality: peerQualities[peerId]?.quality || "Excellent",
