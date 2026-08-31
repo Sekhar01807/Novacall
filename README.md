@@ -22,7 +22,7 @@
 
 <br />
 
-![NovaCall Video Meeting Room](./screenshots/meeting_room.png)
+![NovaCall Video Meeting Stage](./frontend/public/Screenshot%202026-08-29%20190050.png)
 
 </div>
 
@@ -454,13 +454,31 @@ NovaCall includes interactive Swagger UI documentation and health monitoring:
 
 ## Screenshots
 
-| Landing Page | User Dashboard |
+### 1. Landing & Authentication
+| Landing Page | Sign In / Guest Access |
 | :---: | :---: |
-| ![Landing Page](./screenshots/landing.png) | ![Dashboard](./screenshots/dashboard.png) |
-| **Video Meeting Stage** | **Chat & Participant Drawer** |
-| ![Meeting Room](./screenshots/meeting_room.png) | ![Chat Panel](./screenshots/chat_panel.png) |
-| **Meeting Activity History** | **User Profile & Settings** |
-| ![Meeting History](./screenshots/history.png) | ![Profile Settings](./screenshots/profile.png) |
+| ![Landing Page](./frontend/public/Screenshot%202026-08-29%20185050.png) | ![Sign In](./frontend/public/Screenshot%202026-08-29%20185115.png) |
+| **User Registration** | **User Dashboard** |
+| ![Sign Up](./frontend/public/Screenshot%202026-08-29%20185150.png) | ![Dashboard](./frontend/public/Screenshot%202026-08-29%20185310.png) |
+
+### 2. Meeting Scheduling & Pre-Call Readiness
+| Schedule Meeting Modal | Pre-Call Device Lobby |
+| :---: | :---: |
+| ![Schedule Meeting](./frontend/public/Screenshot%202026-08-29%20185447.png) | ![Lobby Preview](./frontend/public/Screenshot%202026-08-29%20185836.png) |
+
+### 3. In-Meeting Video Conferencing & Collaboration
+| Live Video Room & People Panel | Real-Time In-Meeting Chat |
+| :---: | :---: |
+| ![Live Video Stage](./frontend/public/Screenshot%202026-08-29%20190050.png) | ![In-Meeting Chat](./frontend/public/Screenshot%202026-08-29%20190120.png) |
+| **Native Screen Sharing** | **Raise Hand & Live Reactions** |
+| ![Screen Sharing](./frontend/public/Screenshot%202026-08-29%20190233.png) | ![Live Reactions](./frontend/public/showcase-reactions.png) |
+
+### 4. Meeting Logs & User Profile Management
+| Meeting History & Activity Logs | Profile & Security Settings |
+| :---: | :---: |
+| ![Meeting History](./frontend/public/Screenshot%202026-08-29%20185332.png) | ![Profile Settings](./frontend/public/Screenshot%202026-08-29%20185517.png) |
+| **Schedule & Share Links Showcase** | **Meeting History Logs Showcase** |
+| ![Schedule Showcase](./frontend/public/showcase-schedule.png) | ![History Showcase](./frontend/public/showcase-history.png) |
 
 ---
 
