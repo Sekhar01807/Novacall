@@ -132,7 +132,7 @@ export const addParticipant = (roomCode, socketId, user = {}, maxCapacity = DEFA
     }
 
     // Determine clean username and display name (never expose email domain in chat/participants)
-    let rawDisplayName = user.username || user.name || (user.isGuest ? 'Guest' : 'Participant');
+    let rawDisplayName = user.name || user.username || (user.isGuest ? 'Guest' : 'Participant');
     if (typeof rawDisplayName === 'string' && rawDisplayName.includes('@')) {
         rawDisplayName = (user.username && !user.username.includes('@')) ? user.username : rawDisplayName.split('@')[0];
     }

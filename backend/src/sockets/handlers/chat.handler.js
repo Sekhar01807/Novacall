@@ -70,8 +70,8 @@ export const handleChatMessage = (io, socket, rawData, untrustedSender) => {
 
     const { roomCode, room, participant } = participantCheck;
 
-    // Enforce server-side authoritative display name (strictly prefer username over email address)
-    let authoritativeSenderName = participant?.username || participant?.displayName || socket.user?.username || socket.user?.name || "Participant";
+    // Enforce server-side authoritative display name (strictly prefer displayName over email address)
+    let authoritativeSenderName = participant?.displayName || participant?.username || socket.user?.name || socket.user?.username || "Participant";
     if (typeof authoritativeSenderName === 'string' && authoritativeSenderName.includes('@')) {
         authoritativeSenderName = (socket.user?.username && !socket.user.username.includes('@')) 
             ? socket.user.username 
