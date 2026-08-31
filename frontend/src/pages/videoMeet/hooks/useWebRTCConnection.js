@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { socketService } from "../services/socketService";
 import { decodeHTMLEntities } from "../../../utils/textUtils";
+import { client } from "../../../contexts/AuthContext";
 
 export const peerConfigConnections = {
     iceServers: [
@@ -208,18 +209,28 @@ export function useWebRTCConnection({ roomCode, username, audio, toggleAudio, st
 
     const connectToSocketRef = useRef(null);
 
-    const connectToSocket = useCallback(() => {
+    const connectToSocket = useCallback((forceGuest = false) => {
         setMeetingState(MEETING_STATES.CONNECTING);
-        const socket = socketService.connect(null, username);
+        const socket = socketService.connect(null, username, { forceGuest });
         socketRef.current = socket;
 
-        socket.on("connect_error", (err) => {
+        socket.on("connect_error", async (err) => {
             if (err.message === "AUTH_INVALID_TOKEN" || err.message === "AUTH_SESSION_REVOKED" || err.message === "AUTH_USER_NOT_FOUND") {
                 setErrorMessage("Your login session has expired or been revoked. Joining as guest participant.");
+                
+                // Clear server-side cookie and local storage
+                try {
+                    await client.post("/logout").catch(() => {});
+                } catch {
+                    // Ignore logout error
+                }
+                localStorage.removeItem("userProfile");
+                localStorage.removeItem("meetingSettings");
+
                 socketService.disconnect();
                 setTimeout(() => {
-                    if (connectToSocketRef.current) connectToSocketRef.current();
-                }, 500);
+                    if (connectToSocketRef.current) connectToSocketRef.current(true);
+                }, 300);
             } else {
                 setMeetingState(MEETING_STATES.RECONNECTING);
                 setNetworkQuality("Reconnecting");

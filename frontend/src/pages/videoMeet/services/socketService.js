@@ -10,17 +10,21 @@ class SocketService {
      * Connect to the Socket.IO server with JWT token authentication, guest fallback, and robust reconnection
      * @param {string} [customToken]
      * @param {string} [guestDisplayName]
+     * @param {object} [options]
+     * @param {boolean} [options.forceGuest]
      * @returns {import('socket.io-client').Socket}
      */
-    connect(customToken, guestDisplayName) {
+    connect(customToken, guestDisplayName, options = {}) {
         if (!this.socket) {
             const guestName = guestDisplayName || localStorage.getItem("guestDisplayName") || "Guest";
+            const forceGuest = Boolean(options.forceGuest);
 
             this.socket = io(server, {
-                withCredentials: true,
+                withCredentials: !forceGuest,
                 auth: {
-                    ...(customToken ? { token: customToken } : {}),
-                    guestName: guestName
+                    ...(!forceGuest && customToken ? { token: customToken } : {}),
+                    guestName: guestName,
+                    allowGuestFallback: true
                 },
                 reconnection: true,
                 reconnectionAttempts: 10,

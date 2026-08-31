@@ -4,6 +4,21 @@ import { verifyJWT } from "../utils/jwt.js";
 import { ERROR_CODES, formatErrorResponse } from "../utils/errorCodes.js";
 
 export const authMiddleware = async (req, res, next) => {
+    const clearSessionCookie = () => {
+        if (req.cookies && (req.cookies.token || req.cookies.jwt)) {
+            res.clearCookie("token", {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+            });
+            res.clearCookie("jwt", {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+            });
+        }
+    };
+
     try {
         let token = null;
         const authHeader = req.headers.authorization;
@@ -27,6 +42,7 @@ export const authMiddleware = async (req, res, next) => {
         const decoded = verifyJWT(token);
 
         if (!decoded) {
+            clearSessionCookie();
             return res.status(httpStatus.UNAUTHORIZED).json(
                 formatErrorResponse(
                     "Invalid or expired session. Please log in again.",
@@ -39,6 +55,7 @@ export const authMiddleware = async (req, res, next) => {
         const user = await User.findById(decoded.id || decoded._id).select("-password");
 
         if (!user) {
+            clearSessionCookie();
             return res.status(httpStatus.UNAUTHORIZED).json(
                 formatErrorResponse(
                     "User account not found or has been removed.",
@@ -52,6 +69,7 @@ export const authMiddleware = async (req, res, next) => {
         const expectedVersion = user.tokenVersion || 0;
         const tokenVersion = decoded.tokenVersion ?? 0;
         if (tokenVersion < expectedVersion) {
+            clearSessionCookie();
             return res.status(httpStatus.UNAUTHORIZED).json(
                 formatErrorResponse(
                     "Session has expired or been revoked. Please log in again.",
@@ -64,6 +82,7 @@ export const authMiddleware = async (req, res, next) => {
         req.user = user;
         next();
     } catch (error) {
+        clearSessionCookie();
         return res.status(httpStatus.UNAUTHORIZED).json(
             formatErrorResponse(
                 "Authentication verification failed.",
