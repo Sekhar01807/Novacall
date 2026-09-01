@@ -36,46 +36,205 @@ The platform includes a containerized Docker Compose environment, comprehensive 
 
 ---
 
-## Implemented Core Capabilities
+## 📸 Visual Tour & Implemented Interface Showcase
 
-### 1. Video Conferencing & Adaptive NAT Traversal
+Explore the live implemented user experience, core workflows, and interface architecture across the NovaCall platform.
+
+### 1. Marketing Landing Page & Guest Access
+
+<img src="screenshots/landing.png" alt="NovaCall Landing Page" width="100%" />
+
+- **Instant Guest Demo**: One-click demo call launch (`Try Instant Demo Call`) allowing instant testing without registration.
+- **Direct Auth Gateway**: Direct navigation to Sign In and Sign Up portals with persistent session recognition.
+- **Product Information & FAQ**: Detailed overview of browser compatibility, WebRTC media encryption standards, and platform capabilities.
+- **Responsive Layout**: Full viewport optimization for mobile, tablet, and high-resolution desktop displays.
+
+---
+
+### 2. Zero-Trust Authentication & Password Recovery
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Sign In Portal</strong><br /><br />
+      <img src="frontend/public/Screenshot 2026-08-29 185115.png" alt="Sign In Portal" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <strong>User Registration</strong><br /><br />
+      <img src="frontend/public/Screenshot 2026-08-29 185150.png" alt="User Registration" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <ul>
+        <li><strong>Credential Authentication</strong>: Strict verification with bcrypt password validation.</li>
+        <li><strong>Pure HttpOnly Cookies</strong>: JWT tokens issued strictly in secure <code>HttpOnly</code>, <code>SameSite</code> cookies; never leaked in JSON bodies or <code>localStorage</code>.</li>
+        <li><strong>Anti-Enumeration Generic Responses</strong>: Prevents username/email discovery on failed attempts.</li>
+        <li><strong>Guest Join Shortcut</strong>: Quick bypass button allowing direct room entry without logging in.</li>
+      </ul>
+    </td>
+    <td valign="top">
+      <ul>
+        <li><strong>New Account Registration</strong>: Full name, unique username/email, and password validation.</li>
+        <li><strong>Automated Onboarding Dispatch</strong>: Instant welcome email sent to user inbox via Nodemailer SMTP.</li>
+        <li><strong>Password Strength Enforcement</strong>: Minimum 8 characters, uppercase, and numeric validation.</li>
+        <li><strong>Instant Session Establishment</strong>: Immediate cookie-based login redirection to user dashboard.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+---
+
+### 3. User Dashboard & Meeting Scheduler
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Personal Dashboard</strong><br /><br />
+      <img src="screenshots/dashboard.png" alt="User Dashboard" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <strong>Schedule Meeting Modal</strong><br /><br />
+      <img src="frontend/public/Screenshot 2026-08-29 185447.png" alt="Schedule Meeting Modal" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <ul>
+        <li><strong>Instant Conference Creation</strong>: One-click generation of dynamic 6-character room codes.</li>
+        <li><strong>Direct Code Join</strong>: Quick-entry input field to jump directly into active meetings.</li>
+        <li><strong>Upcoming Meetings Widget</strong>: Displays upcoming scheduled conferences with direct launch buttons.</li>
+        <li><strong>Recent Activity Summary</strong>: Shows recent call logs with instant rejoin shortcuts.</li>
+      </ul>
+    </td>
+    <td valign="top">
+      <ul>
+        <li><strong>Meeting Details Configuration</strong>: Custom room title, description/agenda, date, and start time.</li>
+        <li><strong>Duration & Timezone Picker</strong>: Flexible meeting length (15m, 30m, 45m, 60m+) and timezone selection (e.g. IST, UTC).</li>
+        <li><strong>Guest Email Invitations</strong>: Automatically delivers rich HTML calendar invite cards to invitees.</li>
+        <li><strong>Shareable Meeting Link</strong>: Generates instant copyable room links for team distribution.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+---
+
+### 4. Pre-Call Lobby & Device Readiness
+
+<div align="center">
+  <img src="frontend/public/Screenshot 2026-08-29 185836.png" alt="Pre-Call Device Lobby" width="60%" />
+</div>
+
+- **Webcam & Mic Hardware Inspection**: Real-time camera feed preview to check framing, lighting, and microphone readiness before connecting.
+- **Identity Customization**: Set a custom display name for guest sessions or automatically bind authenticated username.
+- **Permission Diagnostics**: Visual feedback for camera and microphone browser permissions.
+- **One-Click Stage Entry**: Seamless transition into the active WebRTC mesh signaling pipeline.
+
+---
+
+### 5. Live Multi-Party Meeting Stage & People Panel
+
+<img src="screenshots/meeting_room.png" alt="Live Multi-Party Meeting Stage" width="100%" />
+
+- **Custom WebRTC Mesh Engine**: High-definition peer-to-peer audio and video streaming with automatic bandwidth adaptation.
+- **Dual NAT Traversal**: Direct P2P connectivity via Google STUN with automatic OpenRelay TURN relay fallback.
+- **Server-Authoritative Host Moderation**: First participant is designated Host with moderation privileges:
+  - Remote microphone muting (`host-mute-user`)
+  - Disruptive participant expulsion (`host-kick-user`)
+  - Global meeting termination (`end-meeting-all`)
+- **People Drawer**: Slide-out panel listing all connected participants with Host badges and individual audio/video statuses.
+- **Connection Diagnostics Badge**: Real-time round-trip latency (RTT) and packet loss metrics (`Excellent`, `Good`, `Fair`, `Poor`).
+
+---
+
+### 6. Real-Time In-Meeting Chat Drawer
+
+<img src="screenshots/chat_panel.png" alt="Real-Time In-Meeting Chat Drawer" width="100%" />
+
+- **Sub-Second Message Delivery**: Dedicated Socket.IO room channels with client-side optimistic message rendering.
+- **Sliding-Window Anti-Abuse Rate Limiter**: Maximum 5 messages per 3-second window per socket connection.
+- **Dual-Layer XSS Protection**: Server-side HTML entity sanitization (`sanitizeHTML`), 1000-character cap, and contextual JSX encoding.
+- **Chat History Synchronization**: Instant replay of in-call messages to participants upon entering the room.
+
+---
+
+### 7. Native Screen Sharing Pipeline
+
+<div align="center">
+  <img src="frontend/public/Screenshot 2026-08-29 190233.png" alt="Native Screen Sharing Modal" width="70%" />
+</div>
+
+- **Native Browser API**: Utilizes `navigator.mediaDevices.getDisplayMedia` without requiring third-party plugins.
+- **Flexible Source Selection**: Choose between Entire Screen, specific Application Window, or individual Chrome/Browser Tabs.
+- **System Audio Sharing**: Optional toggle to broadcast tab/system audio alongside the video feed.
+- **Dynamic Track Replacement**: Seamlessly switches RTCPeerConnection video tracks from webcam to display stream and auto-reverts on stop.
+
+---
+
+### 8. Meeting History Logs & Profile Settings
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Meeting History & Activity Logs</strong><br /><br />
+      <img src="frontend/public/Screenshot 2026-08-29 185332.png" alt="Meeting History Logs" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <strong>User Profile & Security Settings</strong><br /><br />
+      <img src="screenshots/profile.png" alt="Profile Settings" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <ul>
+        <li><strong>Activity Audit Log</strong>: Paginated records of all joined and hosted meeting sessions.</li>
+        <li><strong>Session Metadata</strong>: Formatted recording timestamps, room codes, and completion states.</li>
+        <li><strong>Real-Time Search</strong>: Filter history by room code with responsive pagination controls.</li>
+        <li><strong>Quick Actions</strong>: One-click "Copy Code" and "Rejoin Room" buttons.</li>
+      </ul>
+    </td>
+    <td valign="top">
+      <ul>
+        <li><strong>Profile Information</strong>: Update full name, display name, job title, organization, and timezone.</li>
+        <li><strong>Global Session Revocation</strong>: Invalidate all active JWT sessions across devices via <code>tokenVersion</code> increment.</li>
+        <li><strong>Password Management</strong>: Secure credential update with automated cookie clearance.</li>
+        <li><strong>Atomic Account Deletion</strong>: Complete transactional purge of user data, history, and scheduled meetings.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+---
+
+## Core Capabilities
+
+### Video Conferencing & Adaptive NAT Traversal
 - **Custom WebRTC Mesh Engine**: Multi-party audio/video streaming with dynamic peer connection pooling, track lifecycle management, and bandwidth optimization.
 - **Adaptive NAT Traversal**: Dual Google STUN servers for direct P2P connections with automatic OpenRelay TURN fallback for restrictive symmetric NATs and enterprise firewalls.
 - **In-Call Controls**: Instant camera and microphone toggles, native screen sharing via `getDisplayMedia`, and dynamic responsive video grids.
 - **Connection Health Diagnostics**: Real-time round-trip time (RTT) tracking, packet loss telemetry, and live visual connection badges (`Excellent`, `Good`, `Fair`, `Poor`).
 
-### 2. Pre-Call Lobby & Device Readiness
-- **Pre-Call Camera & Mic Preview**: Interactive lobby view to inspect audio/video hardware feeds and check camera framing before entering calls.
-- **Guest & Authenticated User Entry**: Instant guest display name customization or automatic identity binding for authenticated users.
-
-### 3. Server-Authoritative Room Moderation
+### Server-Authoritative Room Moderation
 - **Automatic Host Designation**: The initial participant entering a room is automatically assigned Host privileges.
 - **Host Moderation Controls**: Remote participant microphone muting (`host-mute-user`), participant expulsion (`host-kick-user`), and global meeting termination (`end-meeting-all`).
 - **Dynamic Host Succession**: Seamless promotion of the next longest-standing participant when the active host disconnects.
 - **Mesh Capacity Enforcement**: Hard cap of 6 concurrent participants per room optimized for full-mesh P2P bandwidth.
 
-### 4. Real-Time Chat & Anti-Abuse
+### Real-Time Chat & Anti-Abuse
 - **Low-Latency Message Delivery**: Broadcast via dedicated Socket.IO room channels with client-side optimistic UI updates.
 - **Dual-Layer XSS Protection**: Server-side HTML entity sanitization (`sanitizeHTML`), 1000-character payload truncation, and contextual React JSX string encoding on the client.
 - **Sliding-Window Rate Limiting**: Anti-flood protection (maximum 5 messages per 3-second window) per socket connection with automatic memory cleanup upon disconnection.
 - **Chat History Synchronization**: Automatic synchronization of in-meeting chat history to newly joined participants.
 
-### 5. Meeting Scheduling & Calendar Management
-- **Interactive Schedule Modal**: Schedule upcoming meetings with custom room titles, dates, start times, durations (e.g. 45 mins), and timezones (e.g. IST, UTC).
-- **One-Click Shareable Links**: Instant generation and clipboard copying of unique room links.
-- **Upcoming Meetings Dashboard**: View and manage upcoming scheduled calls directly from the user dashboard.
-
-### 6. Meeting History Logs & Activity Tracking
-- **Paginated History Records**: Complete audit trail of joined and hosted sessions with formatted timestamps and room codes.
-- **Search & Quick Rejoin**: Real-time room code search with one-click rejoin navigation.
-
-### 7. Transactional Email Dispatching
+### Transactional Email Dispatching & Modern Card Templates
 - **Welcome Onboarding Email**: Automatically dispatched to newly registered users introducing platform capabilities with a direct link to the dashboard.
 - **Scheduled Meeting Calendar Dispatches**: Rich HTML email card with dynamic calendar date tile, formatted date/time, timezone, room code badge, agenda, and direct one-click join link dispatched to both the host and invited guest email lists.
 - **Cryptographic Password Reset**: Secure 6-digit verification code emails with single-use 15-minute TTL.
-- **Responsive Email Cards**: Built with cross-client bulletproof table markup, glowing header gradient accents (`#3B82F6` $\rightarrow$ `#EC4899`), midnight brand bar, monospace code pills, and responsive layout for Gmail, Apple Mail, Outlook, and mobile clients.
+- **Modern Email Card System**: Built with cross-client bulletproof table markup, glowing header gradient accents (`#3B82F6` $\rightarrow$ `#EC4899`), midnight brand bar, monospace code pills, and responsive layout for Gmail, Apple Mail, Outlook, and mobile clients.
 
-### 8. Zero-Trust Authentication & IDOR Protection
+### Zero-Trust Authentication & IDOR Protection
 - **Pure HttpOnly Cookie Session Architecture**: Issues secure `HttpOnly`, `SameSite`, `Secure` session cookies with zero JWT leakage in JSON response payloads, completely preventing token exfiltration via client-side scripts.
 - **WebSocket Handshake Auth & URL Query Exclusion**: Socket.IO authenticates strictly via `HttpOnly` session cookies (`token`/`jwt`), `auth.token`, or `Authorization: Bearer` headers. URL query parameter tokens (`?token=...`) are explicitly disallowed to prevent credential exposure in access logs and proxies.
 - **Full-Stack Session Revocation (`tokenVersion`)**: Atomic user `tokenVersion` increments immediately invalidate all active JWTs across both HTTP endpoints and WebSocket signaling handshakes upon password changes or global sign-out (`signOutAllDevices`).
@@ -472,86 +631,6 @@ NovaCall includes interactive Swagger UI documentation and health monitoring:
 | `VITE_TURN_URL` | No | — | Optional custom TURN relay server URL |
 | `VITE_TURN_USERNAME` | No | — | Optional TURN server authentication username |
 | `VITE_TURN_CREDENTIAL` | No | — | Optional TURN server authentication password/credential |
-
----
-
-## Screenshots (Implemented Platform Features)
-
-### 1. Landing & Authentication
-
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <strong>Landing Page</strong><br /><br />
-      <img src="screenshots/landing.png" alt="Landing Page" width="100%" />
-    </td>
-    <td width="50%" align="center">
-      <strong>Sign In / Guest Access</strong><br /><br />
-      <img src="frontend/public/Screenshot 2026-08-29 185115.png" alt="Sign In Portal" width="100%" />
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" align="center">
-      <strong>User Registration</strong><br /><br />
-      <img src="frontend/public/Screenshot 2026-08-29 185150.png" alt="Sign Up Portal" width="100%" />
-    </td>
-    <td width="50%" align="center">
-      <strong>User Dashboard</strong><br /><br />
-      <img src="screenshots/dashboard.png" alt="User Dashboard" width="100%" />
-    </td>
-  </tr>
-</table>
-
-### 2. Meeting Scheduling & Pre-Call Readiness
-
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <strong>Schedule Meeting Modal</strong><br /><br />
-      <img src="frontend/public/Screenshot 2026-08-29 185447.png" alt="Schedule Meeting Modal" width="100%" />
-    </td>
-    <td width="50%" align="center">
-      <strong>Pre-Call Device Lobby</strong><br /><br />
-      <img src="frontend/public/Screenshot 2026-08-29 185836.png" alt="Pre-Call Device Lobby" width="100%" />
-    </td>
-  </tr>
-</table>
-
-### 3. In-Meeting Video Conferencing & Collaboration
-
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <strong>Live Video Room & People Panel</strong><br /><br />
-      <img src="screenshots/meeting_room.png" alt="Live Video Stage" width="100%" />
-    </td>
-    <td width="50%" align="center">
-      <strong>Real-Time In-Meeting Chat</strong><br /><br />
-      <img src="screenshots/chat_panel.png" alt="In-Meeting Chat Panel" width="100%" />
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" align="center" colspan="2">
-      <strong>Native Screen Sharing</strong><br /><br />
-      <img src="frontend/public/Screenshot 2026-08-29 190233.png" alt="Native Screen Sharing" width="70%" />
-    </td>
-  </tr>
-</table>
-
-### 4. Meeting Logs & User Profile Management
-
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <strong>Meeting History & Activity Logs</strong><br /><br />
-      <img src="frontend/public/Screenshot 2026-08-29 185332.png" alt="Meeting History Logs" width="100%" />
-    </td>
-    <td width="50%" align="center">
-      <strong>Profile & Security Settings</strong><br /><br />
-      <img src="screenshots/profile.png" alt="Profile Settings" width="100%" />
-    </td>
-  </tr>
-</table>
 
 ---
 
