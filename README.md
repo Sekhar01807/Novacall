@@ -51,81 +51,53 @@ Explore the live implemented user experience, core workflows, and interface arch
 
 ---
 
-### 2. Zero-Trust Authentication & Password Recovery
+### 2. Sign In Portal & Zero-Trust Authentication
 
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <strong>Sign In Portal</strong><br /><br />
-      <img src="frontend/public/Screenshot 2026-08-29 185115.png" alt="Sign In Portal" width="100%" />
-    </td>
-    <td width="50%" align="center">
-      <strong>User Registration</strong><br /><br />
-      <img src="frontend/public/Screenshot 2026-08-29 185150.png" alt="User Registration" width="100%" />
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <ul>
-        <li><strong>Credential Authentication</strong>: Strict verification with bcrypt password validation.</li>
-        <li><strong>Pure HttpOnly Cookies</strong>: JWT tokens issued strictly in secure <code>HttpOnly</code>, <code>SameSite</code> cookies; never leaked in JSON bodies or <code>localStorage</code>.</li>
-        <li><strong>Anti-Enumeration Generic Responses</strong>: Prevents username/email discovery on failed attempts.</li>
-        <li><strong>Guest Join Shortcut</strong>: Quick bypass button allowing direct room entry without logging in.</li>
-      </ul>
-    </td>
-    <td valign="top">
-      <ul>
-        <li><strong>New Account Registration</strong>: Full name, unique username/email, and password validation.</li>
-        <li><strong>Automated Onboarding Dispatch</strong>: Instant welcome email sent to user inbox via Nodemailer SMTP.</li>
-        <li><strong>Password Strength Enforcement</strong>: Minimum 8 characters, uppercase, and numeric validation.</li>
-        <li><strong>Instant Session Establishment</strong>: Immediate cookie-based login redirection to user dashboard.</li>
-      </ul>
-    </td>
-  </tr>
-</table>
+<img src="frontend/public/Screenshot 2026-08-29 185115.png" alt="Sign In Portal" width="100%" />
+
+- **Credential Authentication**: Strict verification with bcrypt password validation.
+- **Pure HttpOnly Cookies**: JWT tokens issued strictly in secure `HttpOnly`, `SameSite` cookies; never leaked in JSON bodies or `localStorage`.
+- **Anti-Enumeration Generic Responses**: Prevents username/email discovery on failed attempts.
+- **Guest Join Shortcut**: Quick bypass button allowing direct room entry without logging in.
 
 ---
 
-### 3. User Dashboard & Meeting Scheduler
+### 3. User Registration & Onboarding
 
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <strong>Personal Dashboard</strong><br /><br />
-      <img src="screenshots/dashboard.png" alt="User Dashboard" width="100%" />
-    </td>
-    <td width="50%" align="center">
-      <strong>Schedule Meeting Modal</strong><br /><br />
-      <img src="frontend/public/Screenshot 2026-08-29 185447.png" alt="Schedule Meeting Modal" width="100%" />
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <ul>
-        <li><strong>Instant Conference Creation</strong>: One-click generation of dynamic 6-character room codes.</li>
-        <li><strong>Direct Code Join</strong>: Quick-entry input field to jump directly into active meetings.</li>
-        <li><strong>Upcoming Meetings Widget</strong>: Displays upcoming scheduled conferences with direct launch buttons.</li>
-        <li><strong>Recent Activity Summary</strong>: Shows recent call logs with instant rejoin shortcuts.</li>
-      </ul>
-    </td>
-    <td valign="top">
-      <ul>
-        <li><strong>Meeting Details Configuration</strong>: Custom room title, description/agenda, date, and start time.</li>
-        <li><strong>Duration & Timezone Picker</strong>: Flexible meeting length (15m, 30m, 45m, 60m+) and timezone selection (e.g. IST, UTC).</li>
-        <li><strong>Guest Email Invitations</strong>: Automatically delivers rich HTML calendar invite cards to invitees.</li>
-        <li><strong>Shareable Meeting Link</strong>: Generates instant copyable room links for team distribution.</li>
-      </ul>
-    </td>
-  </tr>
-</table>
+<img src="frontend/public/Screenshot 2026-08-29 185150.png" alt="User Registration" width="100%" />
+
+- **New Account Registration**: Full name, unique username/email, and password validation.
+- **Automated Onboarding Dispatch**: Instant welcome email sent to user inbox via Nodemailer SMTP.
+- **Password Strength Enforcement**: Minimum 8 characters, uppercase, and numeric validation.
+- **Instant Session Establishment**: Immediate cookie-based login redirection to user dashboard.
 
 ---
 
-### 4. Pre-Call Lobby & Device Readiness
+### 4. Personal Dashboard & Instant Conference Hub
 
-<div align="center">
-  <img src="frontend/public/Screenshot 2026-08-29 185836.png" alt="Pre-Call Device Lobby" width="60%" />
-</div>
+<img src="screenshots/dashboard.png" alt="User Dashboard" width="100%" />
+
+- **Instant Conference Creation**: One-click generation of dynamic 6-character room codes.
+- **Direct Code Join**: Quick-entry input field to jump directly into active meetings.
+- **Upcoming Meetings Widget**: Displays upcoming scheduled conferences with direct launch buttons.
+- **Recent Activity Summary**: Shows recent call logs with instant rejoin shortcuts.
+
+---
+
+### 5. Schedule Meeting Modal & Calendar Invites
+
+<img src="frontend/public/Screenshot 2026-08-29 185447.png" alt="Schedule Meeting Modal" width="100%" />
+
+- **Meeting Details Configuration**: Custom room title, description/agenda, date, and start time.
+- **Duration & Timezone Picker**: Flexible meeting length (15m, 30m, 45m, 60m+) and timezone selection (e.g. IST, UTC).
+- **Guest Email Invitations**: Automatically delivers rich HTML calendar invite cards to invitees.
+- **Shareable Meeting Link**: Generates instant copyable room links for team distribution.
+
+---
+
+### 6. Pre-Call Lobby & Device Readiness
+
+<img src="frontend/public/Screenshot 2026-08-29 185836.png" alt="Pre-Call Device Lobby" width="100%" />
 
 - **Webcam & Mic Hardware Inspection**: Real-time camera feed preview to check framing, lighting, and microphone readiness before connecting.
 - **Identity Customization**: Set a custom display name for guest sessions or automatically bind authenticated username.
@@ -134,7 +106,7 @@ Explore the live implemented user experience, core workflows, and interface arch
 
 ---
 
-### 5. Live Multi-Party Meeting Stage & People Panel
+### 7. Live Multi-Party Meeting Stage & People Panel
 
 <img src="screenshots/meeting_room.png" alt="Live Multi-Party Meeting Stage" width="100%" />
 
@@ -149,7 +121,7 @@ Explore the live implemented user experience, core workflows, and interface arch
 
 ---
 
-### 6. Real-Time In-Meeting Chat Drawer
+### 8. Real-Time In-Meeting Chat Drawer
 
 <img src="screenshots/chat_panel.png" alt="Real-Time In-Meeting Chat Drawer" width="100%" />
 
@@ -160,11 +132,9 @@ Explore the live implemented user experience, core workflows, and interface arch
 
 ---
 
-### 7. Native Screen Sharing Pipeline
+### 9. Native Screen Sharing Pipeline
 
-<div align="center">
-  <img src="frontend/public/Screenshot 2026-08-29 190233.png" alt="Native Screen Sharing Modal" width="70%" />
-</div>
+<img src="frontend/public/Screenshot 2026-08-29 190233.png" alt="Native Screen Sharing Modal" width="100%" />
 
 - **Native Browser API**: Utilizes `navigator.mediaDevices.getDisplayMedia` without requiring third-party plugins.
 - **Flexible Source Selection**: Choose between Entire Screen, specific Application Window, or individual Chrome/Browser Tabs.
@@ -173,38 +143,25 @@ Explore the live implemented user experience, core workflows, and interface arch
 
 ---
 
-### 8. Meeting History Logs & Profile Settings
+### 10. Meeting History Logs & Activity Auditing
 
-<table>
-  <tr>
-    <td width="50%" align="center">
-      <strong>Meeting History & Activity Logs</strong><br /><br />
-      <img src="frontend/public/Screenshot 2026-08-29 185332.png" alt="Meeting History Logs" width="100%" />
-    </td>
-    <td width="50%" align="center">
-      <strong>User Profile & Security Settings</strong><br /><br />
-      <img src="screenshots/profile.png" alt="Profile Settings" width="100%" />
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <ul>
-        <li><strong>Activity Audit Log</strong>: Paginated records of all joined and hosted meeting sessions.</li>
-        <li><strong>Session Metadata</strong>: Formatted recording timestamps, room codes, and completion states.</li>
-        <li><strong>Real-Time Search</strong>: Filter history by room code with responsive pagination controls.</li>
-        <li><strong>Quick Actions</strong>: One-click "Copy Code" and "Rejoin Room" buttons.</li>
-      </ul>
-    </td>
-    <td valign="top">
-      <ul>
-        <li><strong>Profile Information</strong>: Update full name, display name, job title, organization, and timezone.</li>
-        <li><strong>Global Session Revocation</strong>: Invalidate all active JWT sessions across devices via <code>tokenVersion</code> increment.</li>
-        <li><strong>Password Management</strong>: Secure credential update with automated cookie clearance.</li>
-        <li><strong>Atomic Account Deletion</strong>: Complete transactional purge of user data, history, and scheduled meetings.</li>
-      </ul>
-    </td>
-  </tr>
-</table>
+<img src="frontend/public/Screenshot 2026-08-29 185332.png" alt="Meeting History Logs" width="100%" />
+
+- **Activity Audit Log**: Paginated records of all joined and hosted meeting sessions.
+- **Session Metadata**: Formatted recording timestamps, room codes, and completion states.
+- **Real-Time Search**: Filter history by room code with responsive pagination controls.
+- **Quick Actions**: One-click "Copy Code" and "Rejoin Room" buttons.
+
+---
+
+### 11. User Profile & Security Settings
+
+<img src="screenshots/profile.png" alt="Profile Settings" width="100%" />
+
+- **Profile Information**: Update full name, display name, job title, organization, and timezone.
+- **Global Session Revocation**: Invalidate all active JWT sessions across devices via `tokenVersion` increment.
+- **Password Management**: Secure credential update with automated cookie clearance.
+- **Atomic Account Deletion**: Complete transactional purge of user data, history, and scheduled meetings.
 
 ---
 
