@@ -22,7 +22,7 @@
 
 <br />
 
-![NovaCall Video Meeting Stage](./frontend/public/Screenshot%202026-08-29%20190050.png)
+<img src="screenshots/meeting_room.png" alt="NovaCall Video Meeting Stage" width="100%" />
 
 </div>
 
@@ -36,33 +36,46 @@ The platform includes a containerized Docker Compose environment, comprehensive 
 
 ---
 
-## Core Capabilities
+## Implemented Core Capabilities
 
-### Video Conferencing & Adaptive NAT Traversal
+### 1. Video Conferencing & Adaptive NAT Traversal
 - **Custom WebRTC Mesh Engine**: Multi-party audio/video streaming with dynamic peer connection pooling, track lifecycle management, and bandwidth optimization.
 - **Adaptive NAT Traversal**: Dual Google STUN servers for direct P2P connections with automatic OpenRelay TURN fallback for restrictive symmetric NATs and enterprise firewalls.
-- **In-Call Controls**: Camera and microphone toggles, native screen sharing via `getDisplayMedia`, and dynamic responsive video grids.
-- **Connection Health Diagnostics**: Real-time round-trip time (RTT) tracking, jitter estimation, and live signal quality indicators.
+- **In-Call Controls**: Instant camera and microphone toggles, native screen sharing via `getDisplayMedia`, and dynamic responsive video grids.
+- **Connection Health Diagnostics**: Real-time round-trip time (RTT) tracking, packet loss telemetry, and live visual connection badges (`Excellent`, `Good`, `Fair`, `Poor`).
 
-### Server-Authoritative Room Moderation
+### 2. Pre-Call Lobby & Device Readiness
+- **Pre-Call Camera & Mic Preview**: Interactive lobby view to inspect audio/video hardware feeds and check camera framing before entering calls.
+- **Guest & Authenticated User Entry**: Instant guest display name customization or automatic identity binding for authenticated users.
+
+### 3. Server-Authoritative Room Moderation
 - **Automatic Host Designation**: The initial participant entering a room is automatically assigned Host privileges.
 - **Host Moderation Controls**: Remote participant microphone muting (`host-mute-user`), participant expulsion (`host-kick-user`), and global meeting termination (`end-meeting-all`).
 - **Dynamic Host Succession**: Seamless promotion of the next longest-standing participant when the active host disconnects.
 - **Mesh Capacity Enforcement**: Hard cap of 6 concurrent participants per room optimized for full-mesh P2P bandwidth.
 
-### Real-Time Chat & Anti-Abuse
+### 4. Real-Time Chat & Anti-Abuse
 - **Low-Latency Message Delivery**: Broadcast via dedicated Socket.IO room channels with client-side optimistic UI updates.
 - **Dual-Layer XSS Protection**: Server-side HTML entity sanitization (`sanitizeHTML`), 1000-character payload truncation, and contextual React JSX string encoding on the client.
 - **Sliding-Window Rate Limiting**: Anti-flood protection (maximum 5 messages per 3-second window) per socket connection with automatic memory cleanup upon disconnection.
 - **Chat History Synchronization**: Automatic synchronization of in-meeting chat history to newly joined participants.
 
-### Transactional Email Dispatching & Modern Card Templates
+### 5. Meeting Scheduling & Calendar Management
+- **Interactive Schedule Modal**: Schedule upcoming meetings with custom room titles, dates, start times, durations (e.g. 45 mins), and timezones (e.g. IST, UTC).
+- **One-Click Shareable Links**: Instant generation and clipboard copying of unique room links.
+- **Upcoming Meetings Dashboard**: View and manage upcoming scheduled calls directly from the user dashboard.
+
+### 6. Meeting History Logs & Activity Tracking
+- **Paginated History Records**: Complete audit trail of joined and hosted sessions with formatted timestamps and room codes.
+- **Search & Quick Rejoin**: Real-time room code search with one-click rejoin navigation.
+
+### 7. Transactional Email Dispatching
 - **Welcome Onboarding Email**: Automatically dispatched to newly registered users introducing platform capabilities with a direct link to the dashboard.
 - **Scheduled Meeting Calendar Dispatches**: Rich HTML email card with dynamic calendar date tile, formatted date/time, timezone, room code badge, agenda, and direct one-click join link dispatched to both the host and invited guest email lists.
 - **Cryptographic Password Reset**: Secure 6-digit verification code emails with single-use 15-minute TTL.
-- **Modern Email Card System**: Built with cross-client bulletproof table markup, glowing header gradient accents (`#3B82F6` $\rightarrow$ `#EC4899`), midnight brand bar, monospace code pills, and responsive layout for Gmail, Apple Mail, Outlook, and mobile clients.
+- **Responsive Email Cards**: Built with cross-client bulletproof table markup, glowing header gradient accents (`#3B82F6` $\rightarrow$ `#EC4899`), midnight brand bar, monospace code pills, and responsive layout for Gmail, Apple Mail, Outlook, and mobile clients.
 
-### Zero-Trust Authentication & IDOR Protection
+### 8. Zero-Trust Authentication & IDOR Protection
 - **Pure HttpOnly Cookie Session Architecture**: Issues secure `HttpOnly`, `SameSite`, `Secure` session cookies with zero JWT leakage in JSON response payloads, completely preventing token exfiltration via client-side scripts.
 - **WebSocket Handshake Auth & URL Query Exclusion**: Socket.IO authenticates strictly via `HttpOnly` session cookies (`token`/`jwt`), `auth.token`, or `Authorization: Bearer` headers. URL query parameter tokens (`?token=...`) are explicitly disallowed to prevent credential exposure in access logs and proxies.
 - **Full-Stack Session Revocation (`tokenVersion`)**: Atomic user `tokenVersion` increments immediately invalidate all active JWTs across both HTTP endpoints and WebSocket signaling handshakes upon password changes or global sign-out (`signOutAllDevices`).
@@ -77,12 +90,12 @@ The platform includes a containerized Docker Compose environment, comprehensive 
 
 | Layer | Technologies | Purpose |
 | :--- | :--- | :--- |
-| **Frontend** | React 19, Vite, Material UI (MUI v7), Axios, WebRTC API | Single-Page Application (SPA), Design System & Real-Time Media Pipeline |
+| **Frontend** | React 19, Vite 7, Material UI (MUI v7), Axios, WebRTC API | Single-Page Application (SPA), Design System & Real-Time Media Pipeline |
 | **Backend** | Node.js 22 LTS, Express.js 5, Socket.IO 4.8 | RESTful API & Real-Time WebSocket Signaling Server |
 | **Database** | MongoDB Atlas, Mongoose 9 | Multi-tenant schema storage with compound indexes |
 | **Email Service** | Nodemailer, SMTP (Gmail / Brevo / Custom) | Transactional email dispatches (welcome, meeting invites, password resets) |
-| **Security** | jsonwebtoken, cookie-parser, bcrypt, crypto (SHA-256), Hardened CSP | Zero-trust auth, HttpOnly cookies, session revocation & sliding rate limiting |
-| **Infrastructure** | Docker, Docker Compose, Nginx, Vercel | Containerized multi-service orchestration and cloud edge hosting |
+| **Security** | jsonwebtoken, cookie-parser, bcrypt, crypto (SHA-256), Hardened CSP, CSRF middleware | Zero-trust auth, HttpOnly cookies, session revocation & sliding rate limiting |
+| **Infrastructure** | Docker, Docker Compose, Nginx, Vercel, Render | Containerized multi-service orchestration and cloud edge hosting |
 | **Testing** | Node.js Test Runner (`node:test`), Playwright E2E | Unit, security, socket lifecycle, email fallback, and E2E browser test suites |
 
 ---
@@ -91,7 +104,7 @@ The platform includes a containerized Docker Compose environment, comprehensive 
 
 ```mermaid
 graph TD
-    Client["React 19 Client (Vite + MUI v7)"]
+    Client["React 19 Client (Vite 7 + MUI v7)"]
     Client -->|"REST API v1 (JWT / HttpOnly Cookie + Request ID)"| Express["Express.js 5 Backend"]
     Client -->|"WebSocket Signaling (JWT Handshake)"| Socket["Socket.IO Signaling Server"]
     Express -->|"Indexed Schemas"| Mongo[("MongoDB Atlas (Mongoose 9)")]
@@ -171,8 +184,8 @@ Novacall/
 │   │   │   ├── passwordReset.controller.js # SHA-256 token generation & reset code dispatch
 │   │   │   ├── meetingHistory.controller.js# Activity pagination, schedule CRUD & invite dispatches
 │   │   │   └── socketManager.js            # Socket initialization wrapper
-│   │   ├── docs/                 # OpenAPI 3.0 specification & Swagger UI
-│   │   ├── middleware/           # auth.middleware.js, error.middleware.js, requestId.middleware.js
+│   │   ├── docs/                 # OpenAPI 3.0 specification & Swagger UI (swaggerSpec.js)
+│   │   ├── middleware/           # auth.middleware.js, error.middleware.js, requestId.middleware.js, csrf.middleware.js
 │   │   ├── models/               # UserModel.js, meetingModel.js, scheduledMeetingModel.js
 │   │   ├── routes/               # UsersRoutes.js
 │   │   ├── services/             # email.service.js (Nodemailer SMTP & card templates)
@@ -181,8 +194,8 @@ Novacall/
 │   │   │   ├── middleware/       # Handshake JWT authentication & validator
 │   │   │   ├── roomState.js      # In-memory room and message store
 │   │   │   └── index.js          # Socket server initialization & routing
-│   │   ├── utils/                # apiError.js, errorCodes.js, jwt.js, logger.js, roomCodeGenerator.js, validators.js
-│   │   └── app.js                # Express app, CSP, cookieParser, rate limiting & CORS
+│   │   ├── utils/                # apiError.js, errorCodes.js, jwt.js, logger.js, roomCodeGenerator.js, validators.js, allowedOrigins.js
+│   │   └── app.js                # Express app, CSP, cookieParser, rate limiting, CORS & health check
 │   ├── tests/
 │   │   ├── auth.test.js          # Auth, cookies, email service fallback & revocation tests
 │   │   ├── meetings.test.js      # Scheduled meetings & IDOR tests
@@ -195,19 +208,28 @@ Novacall/
 │   └── .env.example
 ├── frontend/
 │   ├── src/
+│   │   ├── assets/               # images.js (SVG & brand asset loaders)
 │   │   ├── contexts/             # AuthContext.jsx (withCredentials: true)
-│   │   ├── pages/                # Landing, Auth, Home, History, Profile, VideoMeet
+│   │   ├── pages/                # Landing, Auth, Home, History, Profile, VideoMeet, NotFound
+│   │   │   ├── landingPage.jsx   # Marketing landing page with FAQ & navigation
+│   │   │   ├── authentication.jsx# Auth portal (Sign In, Sign Up, Forgot Password, Reset Code)
 │   │   │   ├── home.jsx          # Dashboard with duration, timezone & guest invite scheduling
+│   │   │   ├── history.jsx       # Meeting activity history with search & pagination
+│   │   │   ├── profile.jsx       # User profile, theme settings & password management
+│   │   │   ├── notFound.jsx      # 404 error page
 │   │   │   └── videoMeet/        # Meeting orchestrator and components
-│   │   │       ├── components/   # VideoGrid, VideoTile, ChatPanel, ParticipantList, etc.
+│   │   │       ├── components/   # VideoGrid, VideoTile, ChatPanel, ParticipantList, LobbyView, MeetingHeader, MeetingControls, MeetingModals, ConnectionQualityIndicator
 │   │   │       ├── hooks/        # useWebRTCConnection.js, useMediaDevices.js
-│   │   │       ├── services/     # socketService.js, meetingService.js
+│   │   │       ├── services/     # socketService.js
 │   │   │       └── VideoMeet.jsx # Meeting view orchestrator
-│   │   ├── styles/               # CSS modules & styling
+│   │   ├── styles/               # CSS modules & styling (videoComponent.module.css)
 │   │   ├── utils/                # textUtils.js, withAuth.jsx
 │   │   ├── App.jsx               # Application routing & providers
+│   │   ├── App.css               # Global application styling
+│   │   ├── environment.js        # Dynamic environment URL resolver
 │   │   ├── index.css             # Design tokens & CSS variables
 │   │   └── index.jsx
+│   ├── public/                   # Static assets & screenshot captures
 │   ├── Dockerfile                # Multi-stage Node 22 + Nginx SPA container
 │   ├── nginx.conf                # Nginx SPA rewrite routing
 │   ├── package.json
@@ -284,12 +306,12 @@ Handshake Authentication ──▶ Room Membership ──▶ Payload Validation 
 | `/api/v1/users/delete_account` | `POST` | Yes | Permanently delete account and all associated meetings/history |
 | **Meeting Management & History** | | | |
 | `/api/v1/users/add_to_activity` | `POST` | Yes | Record a joined meeting code into user's activity log |
-| `/api/v1/users/get_all_activity` | `GET` | Yes | Paginated meeting history with optional regex search query |
+| `/api/v1/users/get_all_activity` | `GET` | Yes | Paginated meeting history with optional search query |
 | `/api/v1/users/create_scheduled_meeting` | `POST` | Yes | Schedule conference; dispatches calendar emails to host & invitees |
 | `/api/v1/users/get_upcoming_meetings` | `GET` | Yes | Fetch all scheduled meetings for the authenticated user |
 | `/api/v1/users/delete_scheduled_meeting/:id` | `DELETE` | Yes | Atomic IDOR-protected cancellation of a scheduled meeting |
 | **System & Monitoring** | | | |
-| `/health` | `GET` | No | System health check (database connection status, uptime, timestamp) |
+| `/health` | `GET` | No | System health check (database connection status, API version, uptime, timestamp) |
 | `/api/docs` | `GET` | No | Interactive Swagger UI API explorer |
 | `/api/openapi.json` | `GET` | No | OpenAPI 3.0 JSON specification |
 
@@ -317,7 +339,6 @@ npm run test:e2e:ui
 - **Chat Anti-Abuse (`chat.test.js`)**: Sliding-window rate limiting (5 msg / 3s), XSS sanitization, 1000-character payload limits, and cross-room isolation.
 - **WebRTC Signaling Boundary (`webrtc.test.js`)**: Intra-room SDP/ICE candidate relaying and cross-room signaling rejection.
 - **Centralized Error & Global Middleware (`errorMiddleware.test.js`)**: Custom ApiError handling, async exception bubbling, 404 route handling, and standard error code payload formatting.
-
 
 ### Playwright E2E Test Suite (`e2e/`)
 - **Flagship Flow (`flagship-flow.spec.js`)**: End-to-end user journey: Register → Login → Create Room → Join Stage → Moderate Participants → Toggle Controls → Send Chat → Leave Cleanly.
@@ -414,9 +435,11 @@ NovaCall includes interactive Swagger UI documentation and health monitoring:
 ```json
 {
   "status": "ok",
+  "version": "1.0.0",
   "uptime": 342,
   "database": "connected",
-  "timestamp": "2026-08-24T08:00:00.000Z"
+  "requestId": "req_f829a4c17b",
+  "timestamp": "2026-08-29T12:00:00.000Z"
 }
 ```
 
@@ -452,33 +475,83 @@ NovaCall includes interactive Swagger UI documentation and health monitoring:
 
 ---
 
-## Screenshots
+## Screenshots (Implemented Platform Features)
 
 ### 1. Landing & Authentication
-| Landing Page | Sign In / Guest Access |
-| :---: | :---: |
-| ![Landing Page](./frontend/public/Screenshot%202026-08-29%20185050.png) | ![Sign In](./frontend/public/Screenshot%202026-08-29%20185115.png) |
-| **User Registration** | **User Dashboard** |
-| ![Sign Up](./frontend/public/Screenshot%202026-08-29%20185150.png) | ![Dashboard](./frontend/public/Screenshot%202026-08-29%20185310.png) |
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Landing Page</strong><br /><br />
+      <img src="screenshots/landing.png" alt="Landing Page" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <strong>Sign In / Guest Access</strong><br /><br />
+      <img src="frontend/public/Screenshot 2026-08-29 185115.png" alt="Sign In Portal" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <strong>User Registration</strong><br /><br />
+      <img src="frontend/public/Screenshot 2026-08-29 185150.png" alt="Sign Up Portal" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <strong>User Dashboard</strong><br /><br />
+      <img src="screenshots/dashboard.png" alt="User Dashboard" width="100%" />
+    </td>
+  </tr>
+</table>
 
 ### 2. Meeting Scheduling & Pre-Call Readiness
-| Schedule Meeting Modal | Pre-Call Device Lobby |
-| :---: | :---: |
-| ![Schedule Meeting](./frontend/public/Screenshot%202026-08-29%20185447.png) | ![Lobby Preview](./frontend/public/Screenshot%202026-08-29%20185836.png) |
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Schedule Meeting Modal</strong><br /><br />
+      <img src="frontend/public/Screenshot 2026-08-29 185447.png" alt="Schedule Meeting Modal" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <strong>Pre-Call Device Lobby</strong><br /><br />
+      <img src="frontend/public/Screenshot 2026-08-29 185836.png" alt="Pre-Call Device Lobby" width="100%" />
+    </td>
+  </tr>
+</table>
 
 ### 3. In-Meeting Video Conferencing & Collaboration
-| Live Video Room & People Panel | Real-Time In-Meeting Chat |
-| :---: | :---: |
-| ![Live Video Stage](./frontend/public/Screenshot%202026-08-29%20190050.png) | ![In-Meeting Chat](./frontend/public/Screenshot%202026-08-29%20190120.png) |
-| **Native Screen Sharing** | **Raise Hand & Live Reactions** |
-| ![Screen Sharing](./frontend/public/Screenshot%202026-08-29%20190233.png) | ![Live Reactions](./frontend/public/showcase-reactions.png) |
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Live Video Room & People Panel</strong><br /><br />
+      <img src="screenshots/meeting_room.png" alt="Live Video Stage" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <strong>Real-Time In-Meeting Chat</strong><br /><br />
+      <img src="screenshots/chat_panel.png" alt="In-Meeting Chat Panel" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center" colspan="2">
+      <strong>Native Screen Sharing</strong><br /><br />
+      <img src="frontend/public/Screenshot 2026-08-29 190233.png" alt="Native Screen Sharing" width="70%" />
+    </td>
+  </tr>
+</table>
 
 ### 4. Meeting Logs & User Profile Management
-| Meeting History & Activity Logs | Profile & Security Settings |
-| :---: | :---: |
-| ![Meeting History](./frontend/public/Screenshot%202026-08-29%20185332.png) | ![Profile Settings](./frontend/public/Screenshot%202026-08-29%20185517.png) |
-| **Schedule & Share Links Showcase** | **Meeting History Logs Showcase** |
-| ![Schedule Showcase](./frontend/public/showcase-schedule.png) | ![History Showcase](./frontend/public/showcase-history.png) |
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <strong>Meeting History & Activity Logs</strong><br /><br />
+      <img src="frontend/public/Screenshot 2026-08-29 185332.png" alt="Meeting History Logs" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <strong>Profile & Security Settings</strong><br /><br />
+      <img src="screenshots/profile.png" alt="Profile Settings" width="100%" />
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -493,16 +566,27 @@ NovaCall includes interactive Swagger UI documentation and health monitoring:
 
 ## Roadmap
 
-- [x] Modular Socket.IO architecture (signaling, room state, chat, media, and moderation handlers)
-- [x] Modular REST controllers (`profile`, `passwordReset`, `meetingHistory`, `user`)
-- [x] Hardened CSP headers, fail-closed CORS, and HttpOnly session cookies
-- [x] IDOR protection and atomic resource ownership across all endpoints
-- [x] Nodemailer SMTP email dispatch service with premium responsive HTML cards
-- [x] Automated welcome onboarding emails and multi-invitee calendar dispatches
-- [x] Playwright E2E flagship workflow test suite
-- [x] Centralized API error codes and request correlation IDs (`X-Request-Id`)
-- [ ] SFU Media Gateway integration (mediasoup / Pion) for high-capacity rooms
-- [ ] Distributed Redis Pub/Sub adapter for multi-instance horizontal scaling
+### Implemented & Verified
+- [x] Full-mesh WebRTC P2P audio and video conferencing pipeline
+- [x] Adaptive NAT traversal (dual Google STUN + OpenRelay TURN fallback)
+- [x] Native screen sharing via `getDisplayMedia`
+- [x] Real-time in-meeting chat with sliding-window rate limiting & XSS sanitization
+- [x] Server-authoritative host moderation (`host-mute-user`, `host-kick-user`, `end-meeting-all`)
+- [x] Dynamic host succession upon host disconnection
+- [x] Pre-call device lobby with camera/microphone readiness inspection
+- [x] Meeting scheduler with date, time, duration, timezone & SMTP calendar email dispatches
+- [x] User activity history with paginated logs, search filtering, and one-click rejoin
+- [x] Pure `HttpOnly` cookie session authentication & instant `tokenVersion` revocation
+- [x] Cryptographic SHA-256 password recovery with 6-digit codes and Nodemailer dispatches
+- [x] Atomic IDOR protection across scheduled meetings, history logs, and user profile data
+- [x] Playwright E2E and Node test runner automated test suites
+
+### Upcoming Features
+- [ ] In-meeting interactive live polls & real-time voting progress
+- [ ] In-meeting shared collaborative notes with text export (`.txt`, `.pdf`)
+- [ ] Raise hand to speak queue & live animated emoji reactions
+- [ ] SFU Media Gateway integration (mediasoup / Pion) for high-capacity rooms (20+ participants)
+- [ ] Distributed Redis Pub/Sub adapter (`@socket.io/redis-adapter`) for multi-instance horizontal scaling
 
 ---
 
@@ -511,4 +595,3 @@ NovaCall includes interactive Swagger UI documentation and health monitoring:
 **Sekhar Reddy**
 - GitHub: [@Sekhar01807](https://github.com/Sekhar01807)
 - LinkedIn: [Sekhar Reddy](https://www.linkedin.com/in/sekhar-reddy-408560281)
-
